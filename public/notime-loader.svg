@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+  <defs>
+    <linearGradient id="nwlg" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#66bb9a"/>
+      <stop offset="100%" stop-color="#2d6a74"/>
+    </linearGradient>
+  </defs>
+  <circle cx="60" cy="60" r="56" stroke="url(#nwlg)" stroke-width="8" stroke-linecap="round"
+    stroke-dasharray="88 12 8 8 8 8 8 8 8 8 8 120" transform="rotate(-88 60 60)"/>
+  <path d="M60 28 L60 60 L82 60" stroke="url(#nwlg)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <circle cx="60" cy="60" r="18" fill="#0a0a0a" opacity="0.92"/>
+</svg>

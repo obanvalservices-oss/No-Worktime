@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+  <defs>
+    <linearGradient id="nwGrad" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#7dd3c0"/>
+      <stop offset="100%" stop-color="#2d6a74"/>
+    </linearGradient>
+  </defs>
+  <circle cx="60" cy="60" r="52" fill="url(#nwGrad)"/>
+  <circle cx="60" cy="60" r="44" fill="#1a1a1a" opacity="0.12"/>
+  <circle cx="60" cy="60" r="28" stroke="#1a1a1a" stroke-width="4" stroke-opacity="0.85" fill="none"/>
+  <path d="M60 38v26l18 10" stroke="#1a1a1a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.9"/>
+  <path d="M60 12 A48 48 0 0 1 108 60" stroke="#1a1a1a" stroke-width="5" stroke-linecap="round" fill="none" stroke-opacity="0.75"/>
+  <path d="M12 60 A48 48 0 0 1 60 12" stroke="#1a1a1a" stroke-width="3" stroke-dasharray="6 10" fill="none" stroke-opacity="0.5"/>
+</svg>
