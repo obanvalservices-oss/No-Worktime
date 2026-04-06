@@ -41,10 +41,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Invalid email or password" }, { status: 401 });
     }
     const token = signToken(user.id);
-    return jsonWithAuthCookie({
-      token,
-      user: { id: user.id, email: user.email },
-    });
+    return jsonWithAuthCookie(
+      { token, user: { id: user.id, email: user.email } },
+      token
+    );
   } catch (e) {
     console.error("login error", e);
     return NextResponse.json({ message: "Login temporarily unavailable" }, { status: 500 });
