@@ -1,0 +1,10 @@
+# Railway (https://railway.app) — Nixpacks detects Node and runs `npm run build`.
+# Set variables from `.env.example` in the Railway dashboard.
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "npx prisma migrate deploy && npm run start"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

@@ -3,6 +3,22 @@ import { NextResponse } from "next/server";
 
 export const AUTH_COOKIE = "payroll_token";
 
+const WEEK_SEC = 60 * 60 * 24 * 7;
+
+/** HttpOnly auth cookie options — Secure in production (HTTPS). */
+export function authCookieOptions(maxAgeSeconds: number) {
+  const secure =
+    process.env.NODE_ENV === "production" ||
+    process.env.COOKIE_SECURE === "true";
+  return {
+    httpOnly: true as const,
+    path: "/" as const,
+    maxAge: maxAgeSeconds,
+    sameSite: "lax" as const,
+    secure,
+  };
+}
+
 function secret(): string {
   const s = process.env.JWT_SECRET;
   if (!s) throw new Error("JWT_SECRET is not set");
@@ -52,17 +68,12 @@ export function jsonWithAuthCookie(
   status = 200
 ): NextResponse {
   const res = NextResponse.json(data, { status });
-  res.cookies.set(AUTH_COOKIE, token, {
-    httpOnly: true,
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7,
-    sameSite: "lax",
-  });
+  res.cookies.set(AUTH_COOKIE, token, authCookieOptions(WEEK_SEC));
   return res;
 }
 
 export function clearAuthCookieResponse(): NextResponse {
   const res = NextResponse.json({ ok: true });
-  res.cookies.set(AUTH_COOKIE, "", { path: "/", maxAge: 0 });
+  res.cookies.set(AUTH_COOKIE, "", { ...authCookieOptions(0), maxAge: 0 });
   return res;
 }

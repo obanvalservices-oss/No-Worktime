@@ -5,7 +5,7 @@ import {
   fetchGoogleProfile,
   isGoogleOAuthConfigured,
 } from "@/lib/google-oauth";
-import { signToken, AUTH_COOKIE } from "@/lib/jwt-auth";
+import { signToken, AUTH_COOKIE, authCookieOptions } from "@/lib/jwt-auth";
 
 function appOrigin(request: Request): string {
   const env = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
@@ -50,12 +50,7 @@ export async function GET(request: Request) {
 
     const token = signToken(user.id);
     const res = NextResponse.redirect(`${base}/dashboard`);
-    res.cookies.set(AUTH_COOKIE, token, {
-      httpOnly: true,
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-      sameSite: "lax",
-    });
+    res.cookies.set(AUTH_COOKIE, token, authCookieOptions(60 * 60 * 24 * 7));
     return res;
   } catch {
     return fail("google_failed");
