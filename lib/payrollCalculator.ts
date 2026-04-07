@@ -178,8 +178,9 @@ export function computeHourlyLineTotals(
   let extraRegularPayRaw = 0;
   let extraOvertimePayRaw = 0;
   for (const seg of segments) {
+    // Manual rows: enter the $/hr you want — same formula for Regular and OT buckets.
     if (seg.bucket === "OVERTIME") {
-      extraOvertimePayRaw += seg.rate * seg.hours * mult;
+      extraOvertimePayRaw += seg.rate * seg.hours;
     } else {
       extraRegularPayRaw += seg.rate * seg.hours;
     }

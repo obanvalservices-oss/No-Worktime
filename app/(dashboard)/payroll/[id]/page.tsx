@@ -170,9 +170,9 @@ function HourlyManualTools({
           Additional rates (optional)
         </p>
         <p className="text-xs text-[var(--muted)] mb-2 leading-relaxed">
-          Extra hours at different rates. Choose whether each row adds to{" "}
-          <strong>regular pay</strong> (rate × hours) or <strong>OT pay</strong> (rate ×
-          hours × OT multiplier).
+          Extra hours at different rates. Each row is <strong>rate × hours</strong>. Pick
+          Regular or OT to add that amount to regular pay or OT pay (enter the OT $/hr
+          you want — no extra multiplier).
         </p>
         <div className="space-y-2">
           {segments.map((seg, i) => (
