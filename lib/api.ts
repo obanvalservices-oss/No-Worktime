@@ -18,7 +18,12 @@ api.interceptors.response.use(
   (err) => {
     if (err.response?.status === 401 && typeof window !== "undefined") {
       localStorage.removeItem("token");
-      if (!window.location.pathname.startsWith("/login")) {
+      const p = window.location.pathname;
+      const onAuthRoute =
+        p.startsWith("/login") ||
+        p.startsWith("/create-account") ||
+        p.startsWith("/auth/");
+      if (!onAuthRoute) {
         window.location.href = "/login";
       }
     }

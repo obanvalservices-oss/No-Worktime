@@ -3,6 +3,7 @@
 import { useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { postLoginPath } from "@/lib/auth/post-login-path";
 
 function CallbackInner() {
   const params = useSearchParams();
@@ -22,9 +23,9 @@ function CallbackInner() {
     }
     (async () => {
       localStorage.setItem("token", token);
-      const ok = await refresh();
-      if (ok) {
-        router.replace("/dashboard");
+      const signedIn = await refresh();
+      if (signedIn) {
+        router.replace(postLoginPath(signedIn.role));
       } else {
         localStorage.removeItem("token");
         router.replace("/login?error=invalid_token");

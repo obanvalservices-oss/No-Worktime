@@ -62,6 +62,10 @@ export function jsonUnauthorized(): NextResponse {
   return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 }
 
+export function jsonForbidden(message = "Forbidden"): NextResponse {
+  return NextResponse.json({ message }, { status: 403 });
+}
+
 export function jsonWithAuthCookie(
   data: unknown,
   token: string,

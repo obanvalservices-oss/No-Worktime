@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { getAuthenticatedUserId, jsonUnauthorized } from "@/lib/jwt-auth";
+import { requireManagementAccess } from "@/lib/auth/api-session";
 
 const patchSchema = z.object({
   name: z.string().min(1),
@@ -12,8 +12,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = getAuthenticatedUserId(request);
-  if (!userId) return jsonUnauthorized();
+  const auth = await requireManagementAccess(request);
+  if (auth instanceof NextResponse) return auth;
+  const { userId } = auth;
   const { id } = await params;
 
   const body = await request.json();
@@ -43,8 +44,9 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = getAuthenticatedUserId(request);
-  if (!userId) return jsonUnauthorized();
+  const auth = await requireManagementAccess(request);
+  if (auth instanceof NextResponse) return auth;
+  const { userId } = auth;
   const { id } = await params;
 
   const existing = await prisma.company.findFirst({

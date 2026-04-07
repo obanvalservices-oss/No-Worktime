@@ -11,28 +11,29 @@ import {
   LogOut,
   Moon,
   Sun,
+  Settings,
+  FileText,
+  Inbox,
 } from "lucide-react";
 import { useCompany } from "@/context/CompanyContext";
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useState } from "react";
 import clsx from "clsx";
-import RequireAuth from "./RequireAuth";
 import BrandLogo from "./BrandLogo";
 import Wordmark from "./Wordmark";
 
-const nav = [
+const operationalNav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/departments", label: "Departments", icon: Building2 },
   { href: "/employees", label: "Employees", icon: Users },
+  { href: "/documents", label: "Documents", icon: FileText },
+  { href: "/requests", label: "Requests", icon: Inbox },
   { href: "/payroll", label: "Payroll", icon: Wallet },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
-  return (
-    <RequireAuth>
-      <AppShellInner>{children}</AppShellInner>
-    </RequireAuth>
-  );
+  return <AppShellInner>{children}</AppShellInner>;
 }
 
 function AppShellInner({ children }: { children: React.ReactNode }) {
@@ -60,7 +61,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           <Wordmark size="sm" className="leading-tight min-w-0 max-[380px]:hidden" />
         </Link>
         <nav className="flex md:flex-col gap-1 flex-1 md:flex-none overflow-x-auto">
-          {nav.map(({ href, label, icon: Icon }) => {
+          {operationalNav.map(({ href, label, icon: Icon }) => {
             const isActive = pathname === href || pathname.startsWith(`${href}/`);
             return (
               <Link
@@ -110,16 +111,25 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
               )}
             </select>
           </div>
-          <span className="text-sm text-[var(--muted)] truncate max-w-[200px]">
-            {user?.email}
+          <span className="text-sm text-[var(--muted)] truncate max-w-[220px] flex flex-col items-end gap-0.5">
+            <span className="truncate">{user?.email}</span>
+            {user?.role ? (
+              <span className="text-[10px] uppercase tracking-wide text-[var(--accent-deep)] dark:text-[var(--accent-light)]">
+                {user.role === "ADMIN"
+                  ? "Admin"
+                  : user.role === "EMPLOYER"
+                    ? "Employer"
+                    : "Employee"}
+              </span>
+            ) : null}
           </span>
           <button
             type="button"
             onClick={() => void logout()}
-            className="flex items-center gap-1 text-sm text-[var(--muted)] hover:text-[var(--text)] px-2 py-1 rounded-lg"
+            className="flex items-center gap-1.5 text-sm text-[var(--muted)] hover:text-[var(--text)] px-2 py-1.5 rounded-lg"
           >
-            <LogOut className="w-4 h-4" />
-            Out
+            <LogOut className="w-4 h-4 shrink-0" />
+            Sign out
           </button>
         </header>
 

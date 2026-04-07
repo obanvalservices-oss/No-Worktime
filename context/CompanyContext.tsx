@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import api from "@/lib/api";
+import { canManageCompany } from "@/lib/auth/roles";
 import { useAuth } from "./AuthContext";
 
 export interface Company {
@@ -39,7 +40,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
-    if (!user) {
+    if (!user || !canManageCompany(user.role)) {
       setCompanies([]);
       setCompanyIdState(null);
       localStorage.removeItem(KEY);

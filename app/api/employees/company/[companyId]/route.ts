@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { getAuthenticatedUserId, jsonUnauthorized } from "@/lib/jwt-auth";
+import { requireManagementAccess } from "@/lib/auth/api-session";
 
 async function assertCompany(userId: string, companyId: string) {
   return prisma.company.findFirst({
@@ -13,8 +13,9 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ companyId: string }> }
 ) {
-  const userId = getAuthenticatedUserId(request);
-  if (!userId) return jsonUnauthorized();
+  const auth = await requireManagementAccess(request);
+  if (auth instanceof NextResponse) return auth;
+  const { userId } = auth;
   const { companyId } = await params;
 
   if (!(await assertCompany(userId, companyId))) {
@@ -23,7 +24,10 @@ export async function GET(
   const rows = await prisma.employee.findMany({
     where: { companyId },
     orderBy: { name: "asc" },
-    include: { department: { select: { id: true, name: true, kind: true } } },
+    include: {
+      department: { select: { id: true, name: true, kind: true } },
+      user: { select: { id: true, email: true } },
+    },
   });
   return NextResponse.json(rows);
 }
@@ -43,8 +47,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ companyId: string }> }
 ) {
-  const userId = getAuthenticatedUserId(request);
-  if (!userId) return jsonUnauthorized();
+  const auth = await requireManagementAccess(request);
+  if (auth instanceof NextResponse) return auth;
+  const { userId } = auth;
   const { companyId } = await params;
 
   if (!(await assertCompany(userId, companyId))) {

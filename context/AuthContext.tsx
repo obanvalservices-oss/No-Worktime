@@ -9,19 +9,26 @@ import {
   type ReactNode,
 } from "react";
 import axios from "axios";
+import type { UserRole } from "@/lib/auth/roles";
 import api from "@/lib/api";
 
 interface User {
   id: string;
   email: string;
+  role: UserRole;
+  emailVerified: boolean;
 }
 
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
-  refresh: () => Promise<boolean>;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  refresh: () => Promise<User | null>;
+  login: (email: string, password: string) => Promise<User>;
+  register: (
+    email: string,
+    password: string,
+    role: "EMPLOYER" | "EMPLOYEE"
+  ) => Promise<{ requiresVerification: boolean; message?: string }>;
   logout: () => void;
 }
 
@@ -31,15 +38,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refresh = useCallback(async (): Promise<boolean> => {
+  const refresh = useCallback(async (): Promise<User | null> => {
     try {
       const { data } = await api.get<User>("/api/auth/me");
       setUser(data);
-      return true;
+      return data;
     } catch {
       if (typeof window !== "undefined") localStorage.removeItem("token");
       setUser(null);
-      return false;
+      return null;
     } finally {
       setLoading(false);
     }
@@ -49,15 +56,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [refresh]);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<User> => {
     try {
-      const { data } = await api.post<{ token: string }>("/api/auth/login", {
+      const { data } = await api.post<{
+        token: string;
+        user: User;
+      }>("/api/auth/login", {
         email,
         password,
       });
       if (data.token) localStorage.setItem("token", data.token);
-      const ok = await refresh();
-      if (!ok) throw new Error("Session could not be established");
+      setUser(data.user);
+      return data.user;
     } catch (e) {
       if (axios.isAxiosError(e)) {
         const msg = (e.response?.data as { message?: string })?.message;
@@ -67,15 +77,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (email: string, password: string) => {
+  const register = async (
+    email: string,
+    password: string,
+    role: "EMPLOYER" | "EMPLOYEE"
+  ): Promise<{ requiresVerification: boolean; message?: string }> => {
     try {
-      const { data } = await api.post<{ token: string }>("/api/auth/register", {
+      const { data } = await api.post<{
+        requiresVerification?: boolean;
+        message?: string;
+      }>("/api/auth/register", {
         email,
         password,
+        role,
       });
-      if (data.token) localStorage.setItem("token", data.token);
-      const ok = await refresh();
-      if (!ok) throw new Error("Session could not be established");
+      return {
+        requiresVerification: data.requiresVerification !== false,
+        message: data.message,
+      };
     } catch (e) {
       if (axios.isAxiosError(e)) {
         const msg = (e.response?.data as { message?: string })?.message;
@@ -93,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     localStorage.removeItem("token");
     setUser(null);
-    window.location.href = "/login";
+    window.location.href = "/";
   };
 
   return (

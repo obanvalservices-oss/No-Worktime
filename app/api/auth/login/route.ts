@@ -20,7 +20,9 @@ export async function POST(request: Request) {
       );
     }
     const email = parsed.data.email.trim().toLowerCase();
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
     if (!user?.password) {
       return NextResponse.json(
         {
@@ -40,9 +42,26 @@ export async function POST(request: Request) {
     if (!ok) {
       return NextResponse.json({ message: "Invalid email or password" }, { status: 401 });
     }
+    if (!user.emailVerified) {
+      return NextResponse.json(
+        {
+          message:
+            "Confirm your email before signing in. Check your inbox or request a new link from support.",
+        },
+        { status: 403 }
+      );
+    }
     const token = signToken(user.id);
     return jsonWithAuthCookie(
-      { token, user: { id: user.id, email: user.email } },
+      {
+        token,
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          emailVerified: user.emailVerified,
+        },
+      },
       token
     );
   } catch (e) {

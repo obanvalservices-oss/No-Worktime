@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { getAuthenticatedUserId, jsonUnauthorized } from "@/lib/jwt-auth";
+import { requireManagementAccess } from "@/lib/auth/api-session";
 
 export async function GET(request: Request) {
-  const userId = getAuthenticatedUserId(request);
-  if (!userId) return jsonUnauthorized();
+  const auth = await requireManagementAccess(request);
+  if (auth instanceof NextResponse) return auth;
+  const { userId } = auth;
 
   const list = await prisma.company.findMany({
     where: { ownerId: userId },
@@ -21,8 +22,9 @@ const createSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const userId = getAuthenticatedUserId(request);
-  if (!userId) return jsonUnauthorized();
+  const auth = await requireManagementAccess(request);
+  if (auth instanceof NextResponse) return auth;
+  const { userId } = auth;
 
   const body = await request.json();
   const parsed = createSchema.safeParse(body);

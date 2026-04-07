@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { getAuthenticatedUserId, jsonUnauthorized } from "@/lib/jwt-auth";
+import { requireManagementAccess } from "@/lib/auth/api-session";
 import { normalizeClockString } from "@/lib/time";
 import { recalculatePayrollLine } from "@/lib/payrollLineRecalc";
 
@@ -25,8 +25,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ runId: string; lineId: string; workDate: string }> }
 ) {
-  const userId = getAuthenticatedUserId(request);
-  if (!userId) return jsonUnauthorized();
+  const auth = await requireManagementAccess(request);
+  if (auth instanceof NextResponse) return auth;
+  const { userId } = auth;
   const { runId, lineId, workDate } = await params;
 
   const run = await assertRun(userId, runId);

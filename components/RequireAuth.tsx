@@ -3,6 +3,7 @@
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import ScreenLoading from "@/components/ScreenLoading";
 
 export default function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -15,11 +16,7 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
   }, [user, loading, router]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-[var(--muted)]">
-        Loading…
-      </div>
-    );
+    return <ScreenLoading message="Loading…" subtle />;
   }
 
   if (!user) {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthenticatedUserId, jsonUnauthorized } from "@/lib/jwt-auth";
+import { requireManagementAccess } from "@/lib/auth/api-session";
 import { recalculatePayrollLine } from "@/lib/payrollLineRecalc";
 import { payrollRunLinesArgs } from "@/lib/payrollLineInclude";
 
@@ -17,8 +17,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ runId: string }> }
 ) {
-  const userId = getAuthenticatedUserId(request);
-  if (!userId) return jsonUnauthorized();
+  const auth = await requireManagementAccess(request);
+  if (auth instanceof NextResponse) return auth;
+  const { userId } = auth;
   const { runId } = await params;
 
   const run = await assertRun(userId, runId);

@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { useCompany } from "@/context/CompanyContext";
 import api from "@/lib/api";
 import { BRAND_TAGLINE } from "@/lib/brand";
+import { axiosErrorMessage } from "@/lib/axiosErrorMessage";
 import {
   ArrowRight,
   Building2,
@@ -39,6 +40,7 @@ export default function DashboardPage() {
   const { company, refresh } = useCompany();
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [runsLoading, setRunsLoading] = useState(false);
 
@@ -68,10 +70,13 @@ export default function DashboardPage() {
     e.preventDefault();
     if (!name.trim()) return;
     setCreating(true);
+    setCreateError(null);
     try {
       await api.post("/api/companies", { name: name.trim() });
       setName("");
       await refresh();
+    } catch (err) {
+      setCreateError(axiosErrorMessage(err, "Could not create company."));
     } finally {
       setCreating(false);
     }
@@ -326,6 +331,11 @@ export default function DashboardPage() {
               ? "Switch between companies from the header anytime."
               : "You’ll unlock departments, employees, and payroll after this step."}
           </p>
+          {createError ? (
+            <p className="text-sm text-red-600 dark:text-red-400 mb-3" role="alert">
+              {createError}
+            </p>
+          ) : null}
           <form onSubmit={createCompany} className="flex gap-2 flex-wrap">
             <input
               placeholder="Company name"

@@ -8,13 +8,27 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+enum UserRole {
+  ADMIN
+  EMPLOYER
+  EMPLOYEE
+}
+
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
   password  String?
   googleId  String?  @unique
+  role      UserRole @default(EMPLOYER)
+  emailVerified              Boolean   @default(true)
+  emailVerificationToken     String?   @unique
+  emailVerificationExpires   DateTime?
   createdAt DateTime @default(now())
   companies Company[]
+  /// When role is EMPLOYEE, links this login to a company Employee record.
+  employeeProfile            Employee?
+  documentsUploaded          EmployeeDocument[]
+  leaveRequestsReviewed      LeaveRequest[] @relation("LeaveRequestReviewedBy")
 }
 
 model Company {
@@ -27,6 +41,8 @@ model Company {
   departments Department[]
   employees   Employee[]
   payrollRuns PayrollRun[]
+  documents   EmployeeDocument[]
+  leaveRequests LeaveRequest[]
 }
 
 model Department {
@@ -58,12 +74,90 @@ model Employee {
   overtimeMultiplier Float       @default(1.5)
   isActive           Boolean     @default(true)
   createdAt          DateTime    @default(now())
+  /// Portal user (EMPLOYEE role) linked to this roster row — required to access assigned documents.
+  userId             String?     @unique
   company            Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
   department         Department  @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  user               User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
   payrollLines       PayrollLine[]
+  documents          EmployeeDocument[]
+  leaveRequests      LeaveRequest[]
 
   @@index([companyId])
   @@index([departmentId])
+}
+
+enum LeaveRequestType {
+  VACATION
+  SICK
+}
+
+enum LeaveRequestStatus {
+  PENDING
+  REJECTED
+  AWAITING_SIGNATURE
+  COMPLETED
+}
+
+/// Vacation / sick leave workflow. When approved, an EmployeeDocument is created for signing.
+model LeaveRequest {
+  id               String             @id @default(uuid())
+  employeeId       String
+  companyId        String
+  type             LeaveRequestType
+  startDate        String
+  endDate          String
+  reason           String
+  notes            String?
+  status           LeaveRequestStatus @default(PENDING)
+  reviewedAt       DateTime?
+  reviewedByUserId String?
+  reviewNote       String?
+  /// Generated approval form (same signing flow as other employer documents).
+  documentId       String?            @unique
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  employee         Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company          Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  reviewedBy       User?              @relation("LeaveRequestReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  document         EmployeeDocument?  @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([status])
+  @@index([startDate])
+}
+
+enum EmployeeDocumentStatus {
+  PENDING_SIGNATURE
+  SIGNED
+}
+
+model EmployeeDocument {
+  id                 String                 @id @default(uuid())
+  employeeId         String
+  companyId          String
+  title              String
+  fileName           String
+  mimeType           String
+  originalData       Bytes
+  status             EmployeeDocumentStatus @default(PENDING_SIGNATURE)
+  uploadedByUserId String
+  signedAt           DateTime?
+  /// e.g. { method: "draw"|"type", typedName?: string, clientSignedAt?: string }
+  signaturePayload   Json?
+  /// Rendered signature image (PNG) for records
+  signatureImage     Bytes?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  employee           Employee               @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company            Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  uploadedBy         User                   @relation(fields: [uploadedByUserId], references: [id], onDelete: Cascade)
+  leaveRequest       LeaveRequest?
+
+  @@index([employeeId])
+  @@index([companyId])
+  @@index([status])
 }
 
 enum PayrollStatus {

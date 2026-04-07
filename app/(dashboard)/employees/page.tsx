@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import axios from "axios";
 import { motion } from "framer-motion";
 import api from "@/lib/api";
 import { useCompany } from "@/context/CompanyContext";
@@ -18,6 +19,122 @@ interface Employee {
   hourlyRate: number | null;
   weeklyBaseSalary: number | null;
   department: Department;
+  user: { id: string; email: string } | null;
+}
+
+function EmployeeRow({
+  emp,
+  delay,
+  onUnlinkOrLink,
+  onRemove,
+}: {
+  emp: Employee;
+  delay: number;
+  onUnlinkOrLink: () => void;
+  onRemove: () => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const link = async () => {
+    if (!email.trim()) return;
+    setBusy(true);
+    try {
+      await api.post(`/api/employees/${emp.id}/link-portal`, {
+        email: email.trim(),
+      });
+      setEmail("");
+      onUnlinkOrLink();
+    } catch (e: unknown) {
+      const msg =
+        axios.isAxiosError(e) &&
+        (e.response?.data as { message?: string })?.message
+          ? (e.response?.data as { message?: string }).message
+          : "Link failed";
+      alert(msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const unlink = async () => {
+    if (!confirm("Remove portal access for this employee?")) return;
+    setBusy(true);
+    try {
+      await api.post(`/api/employees/${emp.id}/unlink-portal`);
+      onUnlinkOrLink();
+    } catch (e: unknown) {
+      const msg =
+        axios.isAxiosError(e) &&
+        (e.response?.data as { message?: string })?.message
+          ? (e.response?.data as { message?: string }).message
+          : "Unlink failed";
+      alert(msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <motion.li
+      initial={{ opacity: 0, x: -8 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay }}
+      className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3"
+    >
+      <div className="min-w-0 flex-1">
+        <div className="font-medium">{emp.name}</div>
+        <div className="text-xs text-[var(--muted)]">
+          {emp.department.name} · {emp.payType}
+          {emp.payType === "HOURLY"
+            ? ` · $${emp.hourlyRate}/hr`
+            : ` · $${emp.weeklyBaseSalary}/wk`}
+        </div>
+        <div className="mt-2 text-xs space-y-1">
+          {emp.user ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[var(--muted)]">Portal:</span>
+              <span className="text-[var(--text)] break-all">{emp.user.email}</span>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void unlink()}
+                className="text-amber-700 dark:text-amber-300 hover:underline disabled:opacity-50"
+              >
+                Unlink
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-end gap-2">
+              <span className="text-[var(--muted)] shrink-0">Portal link</span>
+              <input
+                type="email"
+                placeholder="employee@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="flex-1 min-w-[180px] rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs"
+              />
+              <button
+                type="button"
+                disabled={busy || !email.trim()}
+                onClick={() => void link()}
+                className="rounded-lg border border-[var(--border)] px-2 py-1 text-xs font-medium hover:bg-[var(--accent-muted)]/30 disabled:opacity-50"
+              >
+                Link
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="p-2 rounded-lg text-[var(--muted)] hover:bg-red-500/10 hover:text-red-500 self-start"
+      >
+        <Trash2 className="w-4 h-4" />
+      </button>
+    </motion.li>
+  );
 }
 
 export default function EmployeesPage() {
@@ -157,30 +274,13 @@ export default function EmployeesPage() {
 
       <ul className="space-y-2">
         {rows.map((emp, i) => (
-          <motion.li
+          <EmployeeRow
             key={emp.id}
-            initial={{ opacity: 0, x: -8 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.03 }}
-            className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3"
-          >
-            <div>
-              <div className="font-medium">{emp.name}</div>
-              <div className="text-xs text-[var(--muted)]">
-                {emp.department.name} · {emp.payType}
-                {emp.payType === "HOURLY"
-                  ? ` · $${emp.hourlyRate}/hr`
-                  : ` · $${emp.weeklyBaseSalary}/wk`}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => remove(emp.id)}
-              className="p-2 rounded-lg text-[var(--muted)] hover:bg-red-500/10 hover:text-red-500"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </motion.li>
+            emp={emp}
+            delay={i * 0.03}
+            onUnlinkOrLink={() => void loadEmployees()}
+            onRemove={() => remove(emp.id)}
+          />
         ))}
       </ul>
     </div>

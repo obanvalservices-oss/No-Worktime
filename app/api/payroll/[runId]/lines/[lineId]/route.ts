@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { getAuthenticatedUserId, jsonUnauthorized } from "@/lib/jwt-auth";
+import { requireManagementAccess } from "@/lib/auth/api-session";
 import { recalculatePayrollLine } from "@/lib/payrollLineRecalc";
 
 const rateBucketSchema = z.enum(["REGULAR", "OVERTIME"]);
@@ -37,8 +37,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ runId: string; lineId: string }> }
 ) {
-  const userId = getAuthenticatedUserId(request);
-  if (!userId) return jsonUnauthorized();
+  const auth = await requireManagementAccess(request);
+  if (auth instanceof NextResponse) return auth;
+  const { userId } = auth;
   const { runId, lineId } = await params;
 
   const run = await assertRun(userId, runId);

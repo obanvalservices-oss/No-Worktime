@@ -9,8 +9,17 @@ export async function ensureMasterUser(): Promise<void> {
   const hash = await bcrypt.hash(password, 10);
   await prisma.user.upsert({
     where: { email },
-    create: { email, password: hash },
-    update: { password: hash },
+    create: {
+      email,
+      password: hash,
+      role: "ADMIN",
+      emailVerified: true,
+    },
+    update: {
+      password: hash,
+      role: "ADMIN",
+      emailVerified: true,
+    },
   });
-  console.log(`[bootstrap] Master user ensured: ${email}`);
+  console.log(`[bootstrap] Master user ensured (ADMIN): ${email}`);
 }
