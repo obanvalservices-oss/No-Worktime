@@ -94,6 +94,15 @@ export default function PayrollRunPage() {
     await load();
   };
 
+  const patchHourlyTotals = async (
+    lineId: string,
+    body: { regularHours?: number; overtimeHours?: number }
+  ) => {
+    if (!runId || run?.status !== "DRAFT") return;
+    await api.patch(`/api/payroll/${runId}/lines/${lineId}`, body);
+    await load();
+  };
+
   const calculate = async () => {
     if (!runId) return;
     setBusy(true);
@@ -289,11 +298,51 @@ export default function PayrollRunPage() {
             <div className="px-4 py-3 bg-[var(--bg)] text-sm grid sm:grid-cols-2 md:grid-cols-4 gap-2 border-t border-[var(--border)]">
               <div>
                 <span className="text-[var(--muted)]">Regular h</span>{" "}
-                {line.regularHours?.toFixed(2) ?? "—"}
+                {draft && line.employee.payType === "HOURLY" ? (
+                  <input
+                    key={`${line.id}-regular-${line.regularHours ?? ""}`}
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    defaultValue={line.regularHours ?? ""}
+                    className="ml-1 w-24 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs"
+                    onBlur={(e) => {
+                      const n = Number(e.target.value);
+                      if (Number.isFinite(n) && n >= 0) {
+                        void patchHourlyTotals(line.id, { regularHours: n });
+                      } else {
+                        e.target.value =
+                          line.regularHours != null ? line.regularHours.toFixed(2) : "";
+                      }
+                    }}
+                  />
+                ) : (
+                  line.regularHours?.toFixed(2) ?? "—"
+                )}
               </div>
               <div>
                 <span className="text-[var(--muted)]">OT h</span>{" "}
-                {line.overtimeHours?.toFixed(2) ?? "—"}
+                {draft && line.employee.payType === "HOURLY" ? (
+                  <input
+                    key={`${line.id}-ot-${line.overtimeHours ?? ""}`}
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    defaultValue={line.overtimeHours ?? ""}
+                    className="ml-1 w-24 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs"
+                    onBlur={(e) => {
+                      const n = Number(e.target.value);
+                      if (Number.isFinite(n) && n >= 0) {
+                        void patchHourlyTotals(line.id, { overtimeHours: n });
+                      } else {
+                        e.target.value =
+                          line.overtimeHours != null ? line.overtimeHours.toFixed(2) : "";
+                      }
+                    }}
+                  />
+                ) : (
+                  line.overtimeHours?.toFixed(2) ?? "—"
+                )}
               </div>
               <div>
                 <span className="text-[var(--muted)]">Regular pay</span>{" "}

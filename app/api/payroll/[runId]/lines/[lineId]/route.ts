@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getAuthenticatedUserId, jsonUnauthorized } from "@/lib/jwt-auth";
+import { roundMoney } from "@/lib/payrollCalculator";
 
 async function assertRun(userId: string, runId: string) {
   const run = await prisma.payrollRun.findUnique({
@@ -17,6 +18,8 @@ const patchLineSchema = z.object({
   hourlyRateSnapshot: z.number().nonnegative().optional().nullable(),
   overtimeThreshold: z.number().positive().optional(),
   overtimeMultiplier: z.number().positive().optional(),
+  regularHours: z.number().nonnegative().optional().nullable(),
+  overtimeHours: z.number().nonnegative().optional().nullable(),
 });
 
 export async function PATCH(
@@ -59,6 +62,30 @@ export async function PATCH(
   }
   if (parsed.data.overtimeMultiplier != null) {
     data.overtimeMultiplier = parsed.data.overtimeMultiplier;
+  }
+
+  if (
+    parsed.data.regularHours !== undefined ||
+    parsed.data.overtimeHours !== undefined
+  ) {
+    if (line.employee.payType !== "HOURLY") {
+      return NextResponse.json(
+        { message: "Manual hours are only available for hourly employees" },
+        { status: 400 }
+      );
+    }
+    const regularHours = parsed.data.regularHours ?? line.regularHours ?? 0;
+    const overtimeHours = parsed.data.overtimeHours ?? line.overtimeHours ?? 0;
+    const hourlyRate = line.hourlyRateSnapshot ?? 0;
+    const regularPay = roundMoney(regularHours * hourlyRate);
+    const overtimePay = roundMoney(
+      overtimeHours * hourlyRate * line.overtimeMultiplier
+    );
+    data.regularHours = regularHours;
+    data.overtimeHours = overtimeHours;
+    data.regularPay = regularPay;
+    data.overtimePay = overtimePay;
+    data.grossPay = roundMoney(regularPay + overtimePay);
   }
 
   const updated = await prisma.payrollLine.update({
