@@ -52,11 +52,13 @@ export default function PayrollReportPage() {
 
   const totals = run.lines.reduce(
     (a, l) => ({
+      regH: a.regH + (l.regularHours ?? 0),
       reg: a.reg + (l.regularPay ?? 0),
+      otH: a.otH + (l.overtimeHours ?? 0),
       ot: a.ot + (l.overtimePay ?? 0),
       gross: a.gross + (l.grossPay ?? 0),
     }),
-    { reg: 0, ot: 0, gross: 0 }
+    { regH: 0, reg: 0, otH: 0, ot: 0, gross: 0 }
   );
 
   return (
@@ -85,48 +87,70 @@ export default function PayrollReportPage() {
         </p>
       </header>
 
-      <table className="w-full text-sm border-collapse mb-8">
-        <thead>
-          <tr className="border-b border-[var(--border)] text-left">
-            <th className="py-2 pr-2">Employee</th>
-            <th className="py-2 pr-2">Dept</th>
-            <th className="py-2 pr-2">Type</th>
-            <th className="py-2 pr-2 text-right">Reg. pay</th>
-            <th className="py-2 pr-2 text-right">OT pay</th>
-            <th className="py-2 text-right">Gross</th>
-          </tr>
-        </thead>
-        <tbody>
-          {run.lines.map((l) => (
-            <tr key={l.id} className="border-b border-[var(--border)]">
-              <td className="py-2 pr-2">{l.employee.name}</td>
-              <td className="py-2 pr-2 text-[var(--muted)]">
-                {l.employee.department.name}
+      <div className="overflow-x-auto mb-8">
+        <table className="w-full min-w-[640px] text-sm border-collapse">
+          <thead>
+            <tr className="border-b border-[var(--border)] text-left">
+              <th className="py-2 pr-2">Employee</th>
+              <th className="py-2 pr-2">Dept</th>
+              <th className="py-2 pr-2">Type</th>
+              <th className="py-2 pr-2 text-right whitespace-nowrap">Reg. h</th>
+              <th className="py-2 pr-2 text-right whitespace-nowrap">Reg. pay</th>
+              <th className="py-2 pr-2 text-right whitespace-nowrap">OT h</th>
+              <th className="py-2 pr-2 text-right whitespace-nowrap">OT pay</th>
+              <th className="py-2 text-right whitespace-nowrap">Gross pay</th>
+            </tr>
+          </thead>
+          <tbody>
+            {run.lines.map((l) => (
+              <tr key={l.id} className="border-b border-[var(--border)]">
+                <td className="py-2 pr-2">{l.employee.name}</td>
+                <td className="py-2 pr-2 text-[var(--muted)]">
+                  {l.employee.department.name}
+                </td>
+                <td className="py-2 pr-2">{l.employee.payType}</td>
+                <td className="py-2 pr-2 text-right font-mono tabular-nums">
+                  {l.regularHours != null ? l.regularHours.toFixed(2) : "—"}
+                </td>
+                <td className="py-2 pr-2 text-right font-mono tabular-nums">
+                  {l.regularPay != null ? `$${l.regularPay.toFixed(2)}` : "—"}
+                </td>
+                <td className="py-2 pr-2 text-right font-mono tabular-nums">
+                  {l.overtimeHours != null ? l.overtimeHours.toFixed(2) : "—"}
+                </td>
+                <td className="py-2 pr-2 text-right font-mono tabular-nums">
+                  {l.overtimePay != null ? `$${l.overtimePay.toFixed(2)}` : "—"}
+                </td>
+                <td className="py-2 text-right font-mono font-medium tabular-nums">
+                  {l.grossPay != null ? `$${l.grossPay.toFixed(2)}` : "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="font-semibold border-t-2 border-[var(--border)]">
+              <td colSpan={3} className="py-3 text-right pr-2">
+                Totals
               </td>
-              <td className="py-2 pr-2">{l.employee.payType}</td>
-              <td className="py-2 pr-2 text-right font-mono">
-                {l.regularPay != null ? `$${l.regularPay.toFixed(2)}` : "—"}
+              <td className="py-3 text-right pr-2 font-mono tabular-nums">
+                {totals.regH.toFixed(2)}
               </td>
-              <td className="py-2 pr-2 text-right font-mono">
-                {l.overtimePay != null ? `$${l.overtimePay.toFixed(2)}` : "—"}
+              <td className="py-3 text-right pr-2 font-mono tabular-nums">
+                ${totals.reg.toFixed(2)}
               </td>
-              <td className="py-2 text-right font-mono font-medium">
-                {l.grossPay != null ? `$${l.grossPay.toFixed(2)}` : "—"}
+              <td className="py-3 text-right pr-2 font-mono tabular-nums">
+                {totals.otH.toFixed(2)}
+              </td>
+              <td className="py-3 text-right pr-2 font-mono tabular-nums">
+                ${totals.ot.toFixed(2)}
+              </td>
+              <td className="py-3 text-right font-mono tabular-nums">
+                ${totals.gross.toFixed(2)}
               </td>
             </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="font-semibold border-t-2 border-[var(--border)]">
-            <td colSpan={3} className="py-3 text-right pr-2">
-              Totals
-            </td>
-            <td className="py-3 text-right pr-2 font-mono">${totals.reg.toFixed(2)}</td>
-            <td className="py-3 text-right pr-2 font-mono">${totals.ot.toFixed(2)}</td>
-            <td className="py-3 text-right font-mono">${totals.gross.toFixed(2)}</td>
-          </tr>
-        </tfoot>
-      </table>
+          </tfoot>
+        </table>
+      </div>
 
       <section className="text-sm space-y-6 print:break-inside-avoid">
         <h2 className="font-semibold text-lg">Hourly detail</h2>
