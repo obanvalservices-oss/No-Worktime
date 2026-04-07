@@ -65,7 +65,13 @@ export function calculateSalaryPay(weeklyAmount: number) {
   };
 }
 
-export type ExtraRateSegment = { rate: number; hours: number };
+export type RateBucket = "REGULAR" | "OVERTIME";
+
+export type ExtraRateSegment = {
+  rate: number;
+  hours: number;
+  bucket: RateBucket;
+};
 
 export function parseExtraRateSegments(raw: unknown): ExtraRateSegment[] {
   if (!Array.isArray(raw)) return [];
@@ -74,13 +80,16 @@ export function parseExtraRateSegments(raw: unknown): ExtraRateSegment[] {
     if (!item || typeof item !== "object") continue;
     const rate = Number((item as { rate?: unknown }).rate);
     const hours = Number((item as { hours?: unknown }).hours);
+    const b = (item as { bucket?: unknown }).bucket;
+    const bucket: RateBucket =
+      b === "OVERTIME" ? "OVERTIME" : "REGULAR";
     if (
       Number.isFinite(rate) &&
       rate >= 0 &&
       Number.isFinite(hours) &&
       hours >= 0
     ) {
-      out.push({ rate, hours });
+      out.push({ rate, hours, bucket });
     }
   }
   return out;
@@ -92,11 +101,11 @@ type LineSnap = {
   overtimeThreshold: number;
   overtimeMultiplier: number;
   manualRegularHours: number | null;
-  manualTotalHours: number | null;
+  manualOvertimeHours: number | null;
   extraRateSegments: unknown;
 };
 
-/** Hourly pay: clock-based split, optional manual reg/total override, optional extra rate rows. */
+/** Hourly pay: clock-based split, optional manual reg/OT override, optional extra rate rows. */
 export function computeHourlyLineTotals(
   entries: TimeEntryInput[],
   line: LineSnap
@@ -105,24 +114,34 @@ export function computeHourlyLineTotals(
   const threshold = line.overtimeThreshold;
   const mult = line.overtimeMultiplier;
   const manualReg = line.manualRegularHours;
-  const manualTotal = line.manualTotalHours;
+  const manualOt = line.manualOvertimeHours;
   const segments = parseExtraRateSegments(line.extraRateSegments);
-  const extraStraightPay = roundMoney(
-    segments.reduce((s, seg) => s + seg.rate * seg.hours, 0)
-  );
+
+  let extraRegularPay = 0;
+  let extraOvertimePay = 0;
+  for (const seg of segments) {
+    if (seg.bucket === "OVERTIME") {
+      extraOvertimePay += roundMoney(seg.rate * seg.hours * mult);
+    } else {
+      extraRegularPay += roundMoney(seg.rate * seg.hours);
+    }
+  }
+  extraRegularPay = roundMoney(extraRegularPay);
+  extraOvertimePay = roundMoney(extraOvertimePay);
 
   let regular: number;
   let overtime: number;
 
   if (
     manualReg != null &&
-    manualTotal != null &&
+    manualOt != null &&
     Number.isFinite(manualReg) &&
-    Number.isFinite(manualTotal) &&
-    manualTotal >= manualReg
+    Number.isFinite(manualOt) &&
+    manualReg >= 0 &&
+    manualOt >= 0
   ) {
     regular = manualReg;
-    overtime = manualTotal - manualReg;
+    overtime = manualOt;
   } else {
     const totalHours = sumWeekHours(entries);
     const split = splitRegularOvertime(totalHours, threshold);
@@ -131,8 +150,9 @@ export function computeHourlyLineTotals(
   }
 
   const baseRegularPay = roundMoney(regular * rate);
-  const overtimePay = roundMoney(overtime * rate * mult);
-  const regularPay = roundMoney(baseRegularPay + extraStraightPay);
+  const baseOvertimePay = roundMoney(overtime * rate * mult);
+  const regularPay = roundMoney(baseRegularPay + extraRegularPay);
+  const overtimePay = roundMoney(baseOvertimePay + extraOvertimePay);
   const grossPay = roundMoney(regularPay + overtimePay);
 
   return {

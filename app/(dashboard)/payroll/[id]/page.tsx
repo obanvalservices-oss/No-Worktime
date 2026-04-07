@@ -33,7 +33,7 @@ interface Line {
   overtimeThreshold: number;
   overtimeMultiplier: number;
   manualRegularHours: number | null;
-  manualTotalHours: number | null;
+  manualOvertimeHours: number | null;
   extraRateSegments: unknown;
   regularHours: number | null;
   overtimeHours: number | null;
@@ -66,13 +66,7 @@ function HourlyManualTools({
 }) {
   const weekClock = sumWeekHours(line.timeEntries);
   const manualActive =
-    line.manualRegularHours != null && line.manualTotalHours != null;
-  const otDerived =
-    manualActive &&
-    line.manualTotalHours != null &&
-    line.manualRegularHours != null
-      ? Math.max(0, line.manualTotalHours - line.manualRegularHours)
-      : null;
+    line.manualRegularHours != null && line.manualOvertimeHours != null;
 
   const [segments, setSegments] = useState<ExtraRateSegment[]>(() =>
     parseExtraRateSegments(line.extraRateSegments)
@@ -88,22 +82,22 @@ function HourlyManualTools({
     void onPatch({ extraRateSegments: next });
   };
 
-  const saveManualFromInputs = (regEl: HTMLInputElement | null, totEl: HTMLInputElement | null) => {
+  const saveManualFromInputs = (
+    regEl: HTMLInputElement | null,
+    otEl: HTMLInputElement | null
+  ) => {
     const rs = regEl?.value?.trim() ?? "";
-    const ts = totEl?.value?.trim() ?? "";
-    if (rs === "" && ts === "") {
-      void onPatch({ manualRegularHours: null, manualTotalHours: null });
+    const os = otEl?.value?.trim() ?? "";
+    if (rs === "" && os === "") {
+      void onPatch({ manualRegularHours: null, manualOvertimeHours: null });
       return;
     }
     const r = Number(rs);
-    const t = Number(ts);
-    if (!Number.isFinite(r) || !Number.isFinite(t) || r < 0 || t < 0) {
+    const o = Number(os);
+    if (!Number.isFinite(r) || !Number.isFinite(o) || r < 0 || o < 0) {
       return;
     }
-    if (t < r) {
-      return;
-    }
-    void onPatch({ manualRegularHours: r, manualTotalHours: t });
+    void onPatch({ manualRegularHours: r, manualOvertimeHours: o });
   };
 
   const baseRate = line.hourlyRateSnapshot ?? 0;
@@ -115,19 +109,15 @@ function HourlyManualTools({
           Manual hour override (optional)
         </p>
         <p className="text-xs text-[var(--muted)] mb-2 leading-relaxed">
-          Clock week total: {decimalHoursToHHMM(weekClock)} ({weekClock.toFixed(2)} h). Leave
-          both fields empty to use clocks for pay. Or enter regular hours and{" "}
-          <strong>total</strong> hours — OT hours = total − regular (base rate + OT
-          multiplier).
+          Clock week total: {decimalHoursToHHMM(weekClock)} ({weekClock.toFixed(2)} h).
+          Leave both fields empty to use clocks for the reg/OT split. To override, enter{" "}
+          <strong>regular</strong> and <strong>OT</strong> hours (both required together).
         </p>
-        <div
-          className="flex flex-wrap items-end gap-3"
-          data-manual-wrap
-        >
+        <div className="flex flex-wrap items-end gap-3" data-manual-wrap>
           <label className="text-xs text-[var(--muted)] flex flex-col gap-1">
             Regular h
             <input
-              key={`mr-${line.id}-${String(line.manualRegularHours)}-${String(line.manualTotalHours)}`}
+              key={`mr-${line.id}-${String(line.manualRegularHours)}-${String(line.manualOvertimeHours)}`}
               type="number"
               step="0.01"
               min="0"
@@ -136,41 +126,39 @@ function HourlyManualTools({
               data-manual-reg
               onBlur={(e) => {
                 const form = e.currentTarget.closest("[data-manual-wrap]");
-                const tot = form?.querySelector<HTMLInputElement>(
-                  "[data-manual-tot]"
-                );
-                saveManualFromInputs(e.currentTarget, tot ?? null);
+                const ot = form?.querySelector<HTMLInputElement>("[data-manual-ot]");
+                saveManualFromInputs(e.currentTarget, ot ?? null);
               }}
             />
           </label>
           <label className="text-xs text-[var(--muted)] flex flex-col gap-1">
-            Total h
+            OT h
             <input
-              key={`mt-${line.id}-${String(line.manualRegularHours)}-${String(line.manualTotalHours)}`}
+              key={`mo-${line.id}-${String(line.manualRegularHours)}-${String(line.manualOvertimeHours)}`}
               type="number"
               step="0.01"
               min="0"
-              defaultValue={line.manualTotalHours ?? ""}
+              defaultValue={line.manualOvertimeHours ?? ""}
               className="w-28 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 text-sm font-mono"
-              data-manual-tot
+              data-manual-ot
               onBlur={(e) => {
                 const form = e.currentTarget.closest("[data-manual-wrap]");
-                const reg = form?.querySelector<HTMLInputElement>(
-                  "[data-manual-reg]"
-                );
+                const reg = form?.querySelector<HTMLInputElement>("[data-manual-reg]");
                 saveManualFromInputs(reg ?? null, e.currentTarget);
               }}
             />
           </label>
-          {manualActive && otDerived != null && (
+          {manualActive && (
             <span className="text-xs text-[var(--muted)] pb-1">
-              → OT {otDerived.toFixed(2)} h (derived)
+              Manual override active
             </span>
           )}
           <button
             type="button"
             className="text-xs link-brand px-2 py-1 rounded"
-            onClick={() => void onPatch({ manualRegularHours: null, manualTotalHours: null })}
+            onClick={() =>
+              void onPatch({ manualRegularHours: null, manualOvertimeHours: null })
+            }
           >
             Use clock totals
           </button>
@@ -182,13 +170,30 @@ function HourlyManualTools({
           Additional rates (optional)
         </p>
         <p className="text-xs text-[var(--muted)] mb-2 leading-relaxed">
-          Extra straight-time buckets at different rates (added to regular pay). Base
-          employee rate still applies to hours above unless you override manually.
+          Extra hours at different rates. Choose whether each row adds to{" "}
+          <strong>regular pay</strong> (rate × hours) or <strong>OT pay</strong> (rate ×
+          hours × OT multiplier).
         </p>
         <div className="space-y-2">
           {segments.map((seg, i) => (
             <div key={i} className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-[var(--muted)] w-8">{i + 1}.</span>
+              <label className="text-xs text-[var(--muted)] flex items-center gap-1">
+                Applies to
+                <select
+                  value={seg.bucket}
+                  className="rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs"
+                  onChange={(e) => {
+                    const bucket = e.target.value === "OVERTIME" ? "OVERTIME" : "REGULAR";
+                    const next = [...segments];
+                    next[i] = { ...next[i], bucket };
+                    commitSegments(next);
+                  }}
+                >
+                  <option value="REGULAR">Regular</option>
+                  <option value="OVERTIME">OT</option>
+                </select>
+              </label>
               <label className="text-xs text-[var(--muted)] flex items-center gap-1">
                 Rate $
                 <input
@@ -237,7 +242,10 @@ function HourlyManualTools({
             type="button"
             className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--accent-deep)] dark:text-[var(--accent-light)] hover:underline"
             onClick={() => {
-              commitSegments([...segments, { rate: baseRate, hours: 0 }]);
+              commitSegments([
+                ...segments,
+                { rate: baseRate, hours: 0, bucket: "REGULAR" },
+              ]);
             }}
           >
             <Plus className="w-3.5 h-3.5" />

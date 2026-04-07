@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { getAuthenticatedUserId, jsonUnauthorized } from "@/lib/jwt-auth";
 import { recalculatePayrollLine } from "@/lib/payrollLineRecalc";
 
+const rateBucketSchema = z.enum(["REGULAR", "OVERTIME"]);
+
 async function assertRun(userId: string, runId: string) {
   const run = await prisma.payrollRun.findUnique({
     where: { id: runId },
@@ -19,12 +21,13 @@ const patchLineSchema = z.object({
   overtimeThreshold: z.number().positive().optional(),
   overtimeMultiplier: z.number().positive().optional(),
   manualRegularHours: z.number().nonnegative().optional().nullable(),
-  manualTotalHours: z.number().nonnegative().optional().nullable(),
+  manualOvertimeHours: z.number().nonnegative().optional().nullable(),
   extraRateSegments: z
     .array(
       z.object({
         rate: z.number().nonnegative(),
         hours: z.number().nonnegative(),
+        bucket: rateBucketSchema,
       })
     )
     .optional(),
@@ -61,32 +64,22 @@ export async function PATCH(
   const raw = body as Record<string, unknown>;
   const manualKeysTouched =
     Object.prototype.hasOwnProperty.call(raw, "manualRegularHours") ||
-    Object.prototype.hasOwnProperty.call(raw, "manualTotalHours");
+    Object.prototype.hasOwnProperty.call(raw, "manualOvertimeHours");
 
   const d = parsed.data;
   if (manualKeysTouched) {
     if (
       !Object.prototype.hasOwnProperty.call(raw, "manualRegularHours") ||
-      !Object.prototype.hasOwnProperty.call(raw, "manualTotalHours")
+      !Object.prototype.hasOwnProperty.call(raw, "manualOvertimeHours")
     ) {
       return NextResponse.json(
         {
           message:
-            "Include both manualRegularHours and manualTotalHours (use null,null to clear).",
+            "Include both manualRegularHours and manualOvertimeHours (use null,null to clear).",
         },
         { status: 400 }
       );
     }
-  }
-  if (
-    d.manualRegularHours != null &&
-    d.manualTotalHours != null &&
-    d.manualTotalHours < d.manualRegularHours
-  ) {
-    return NextResponse.json(
-      { message: "manualTotalHours must be >= manualRegularHours" },
-      { status: 400 }
-    );
   }
 
   const data: Record<string, unknown> = {};
@@ -104,7 +97,7 @@ export async function PATCH(
   }
   if (manualKeysTouched) {
     data.manualRegularHours = d.manualRegularHours;
-    data.manualTotalHours = d.manualTotalHours;
+    data.manualOvertimeHours = d.manualOvertimeHours;
   }
   if (d.extraRateSegments !== undefined) {
     data.extraRateSegments = d.extraRateSegments;
