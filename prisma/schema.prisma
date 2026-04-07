@@ -94,6 +94,11 @@ model PayrollLine {
   weeklySalaryAmount Float?
   overtimeThreshold  Float        @default(40)
   overtimeMultiplier Float        @default(1.5)
+  /// When set together with manualTotalHours, replaces clock-derived reg/OT split for pay.
+  manualRegularHours Float?
+  manualTotalHours   Float?
+  /// Extra straight-time buckets at different rates: [{ "rate": number, "hours": number }, ...]
+  extraRateSegments  Json         @default("[]")
   regularHours       Float?
   overtimeHours      Float?
   regularPay         Float?

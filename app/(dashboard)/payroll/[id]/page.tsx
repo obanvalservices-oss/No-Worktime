@@ -10,8 +10,12 @@ import {
   sumDayHours,
   sumWeekHours,
 } from "@/lib/time";
+import {
+  parseExtraRateSegments,
+  type ExtraRateSegment,
+} from "@/lib/payrollCalculator";
 import { motion } from "framer-motion";
-import { Calculator, Lock, Printer } from "lucide-react";
+import { Calculator, Lock, Plus, Printer, Trash2 } from "lucide-react";
 
 interface TimeEntry {
   id: string;
@@ -28,6 +32,9 @@ interface Line {
   weeklySalaryAmount: number | null;
   overtimeThreshold: number;
   overtimeMultiplier: number;
+  manualRegularHours: number | null;
+  manualTotalHours: number | null;
+  extraRateSegments: unknown;
   regularHours: number | null;
   overtimeHours: number | null;
   regularPay: number | null;
@@ -48,6 +55,198 @@ interface Run {
   endDate: string;
   status: "DRAFT" | "FINALIZED";
   lines: Line[];
+}
+
+function HourlyManualTools({
+  line,
+  onPatch,
+}: {
+  line: Line;
+  onPatch: (body: Record<string, unknown>) => void;
+}) {
+  const weekClock = sumWeekHours(line.timeEntries);
+  const manualActive =
+    line.manualRegularHours != null && line.manualTotalHours != null;
+  const otDerived =
+    manualActive &&
+    line.manualTotalHours != null &&
+    line.manualRegularHours != null
+      ? Math.max(0, line.manualTotalHours - line.manualRegularHours)
+      : null;
+
+  const [segments, setSegments] = useState<ExtraRateSegment[]>(() =>
+    parseExtraRateSegments(line.extraRateSegments)
+  );
+
+  const segmentsKey = JSON.stringify(line.extraRateSegments ?? null);
+  useEffect(() => {
+    setSegments(parseExtraRateSegments(line.extraRateSegments));
+  }, [line.id, segmentsKey]);
+
+  const commitSegments = (next: ExtraRateSegment[]) => {
+    setSegments(next);
+    void onPatch({ extraRateSegments: next });
+  };
+
+  const saveManualFromInputs = (regEl: HTMLInputElement | null, totEl: HTMLInputElement | null) => {
+    const rs = regEl?.value?.trim() ?? "";
+    const ts = totEl?.value?.trim() ?? "";
+    if (rs === "" && ts === "") {
+      void onPatch({ manualRegularHours: null, manualTotalHours: null });
+      return;
+    }
+    const r = Number(rs);
+    const t = Number(ts);
+    if (!Number.isFinite(r) || !Number.isFinite(t) || r < 0 || t < 0) {
+      return;
+    }
+    if (t < r) {
+      return;
+    }
+    void onPatch({ manualRegularHours: r, manualTotalHours: t });
+  };
+
+  const baseRate = line.hourlyRateSnapshot ?? 0;
+
+  return (
+    <div className="border-t border-[var(--border)] bg-[var(--bg)]/80 px-4 py-3 space-y-4">
+      <div>
+        <p className="text-xs font-medium text-[var(--text)] mb-0.5">
+          Manual hour override (optional)
+        </p>
+        <p className="text-xs text-[var(--muted)] mb-2 leading-relaxed">
+          Clock week total: {decimalHoursToHHMM(weekClock)} ({weekClock.toFixed(2)} h). Leave
+          both fields empty to use clocks for pay. Or enter regular hours and{" "}
+          <strong>total</strong> hours — OT hours = total − regular (base rate + OT
+          multiplier).
+        </p>
+        <div
+          className="flex flex-wrap items-end gap-3"
+          data-manual-wrap
+        >
+          <label className="text-xs text-[var(--muted)] flex flex-col gap-1">
+            Regular h
+            <input
+              key={`mr-${line.id}-${String(line.manualRegularHours)}-${String(line.manualTotalHours)}`}
+              type="number"
+              step="0.01"
+              min="0"
+              defaultValue={line.manualRegularHours ?? ""}
+              className="w-28 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 text-sm font-mono"
+              data-manual-reg
+              onBlur={(e) => {
+                const form = e.currentTarget.closest("[data-manual-wrap]");
+                const tot = form?.querySelector<HTMLInputElement>(
+                  "[data-manual-tot]"
+                );
+                saveManualFromInputs(e.currentTarget, tot ?? null);
+              }}
+            />
+          </label>
+          <label className="text-xs text-[var(--muted)] flex flex-col gap-1">
+            Total h
+            <input
+              key={`mt-${line.id}-${String(line.manualRegularHours)}-${String(line.manualTotalHours)}`}
+              type="number"
+              step="0.01"
+              min="0"
+              defaultValue={line.manualTotalHours ?? ""}
+              className="w-28 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 text-sm font-mono"
+              data-manual-tot
+              onBlur={(e) => {
+                const form = e.currentTarget.closest("[data-manual-wrap]");
+                const reg = form?.querySelector<HTMLInputElement>(
+                  "[data-manual-reg]"
+                );
+                saveManualFromInputs(reg ?? null, e.currentTarget);
+              }}
+            />
+          </label>
+          {manualActive && otDerived != null && (
+            <span className="text-xs text-[var(--muted)] pb-1">
+              → OT {otDerived.toFixed(2)} h (derived)
+            </span>
+          )}
+          <button
+            type="button"
+            className="text-xs link-brand px-2 py-1 rounded"
+            onClick={() => void onPatch({ manualRegularHours: null, manualTotalHours: null })}
+          >
+            Use clock totals
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <p className="text-xs font-medium text-[var(--text)] mb-0.5">
+          Additional rates (optional)
+        </p>
+        <p className="text-xs text-[var(--muted)] mb-2 leading-relaxed">
+          Extra straight-time buckets at different rates (added to regular pay). Base
+          employee rate still applies to hours above unless you override manually.
+        </p>
+        <div className="space-y-2">
+          {segments.map((seg, i) => (
+            <div key={i} className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-[var(--muted)] w-8">{i + 1}.</span>
+              <label className="text-xs text-[var(--muted)] flex items-center gap-1">
+                Rate $
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={seg.rate}
+                  className="w-24 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-sm"
+                  onChange={(e) => {
+                    const n = Number(e.target.value);
+                    const next = [...segments];
+                    next[i] = { ...next[i], rate: Number.isFinite(n) ? n : 0 };
+                    commitSegments(next);
+                  }}
+                />
+              </label>
+              <label className="text-xs text-[var(--muted)] flex items-center gap-1">
+                Hours
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={seg.hours}
+                  className="w-24 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-sm"
+                  onChange={(e) => {
+                    const n = Number(e.target.value);
+                    const next = [...segments];
+                    next[i] = { ...next[i], hours: Number.isFinite(n) ? n : 0 };
+                    commitSegments(next);
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                className="p-1.5 rounded text-[var(--muted)] hover:text-red-500 hover:bg-red-500/10"
+                aria-label="Remove row"
+                onClick={() => {
+                  commitSegments(segments.filter((_, j) => j !== i));
+                }}
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--accent-deep)] dark:text-[var(--accent-light)] hover:underline"
+            onClick={() => {
+              commitSegments([...segments, { rate: baseRate, hours: 0 }]);
+            }}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add rate / hours row
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function PayrollRunPage() {
@@ -94,10 +293,7 @@ export default function PayrollRunPage() {
     await load();
   };
 
-  const patchHourlyTotals = async (
-    lineId: string,
-    body: { regularHours?: number; overtimeHours?: number }
-  ) => {
+  const patchLine = async (lineId: string, body: Record<string, unknown>) => {
     if (!runId || run?.status !== "DRAFT") return;
     await api.patch(`/api/payroll/${runId}/lines/${lineId}`, body);
     await load();
@@ -269,6 +465,12 @@ export default function PayrollRunPage() {
                     </tr>
                   </tfoot>
                 </table>
+                {draft && (
+                  <HourlyManualTools
+                    line={line}
+                    onPatch={(body) => void patchLine(line.id, body)}
+                  />
+                )}
               </div>
             )}
 
@@ -298,51 +500,11 @@ export default function PayrollRunPage() {
             <div className="px-4 py-3 bg-[var(--bg)] text-sm grid sm:grid-cols-2 md:grid-cols-4 gap-2 border-t border-[var(--border)]">
               <div>
                 <span className="text-[var(--muted)]">Regular h</span>{" "}
-                {draft && line.employee.payType === "HOURLY" ? (
-                  <input
-                    key={`${line.id}-regular-${line.regularHours ?? ""}`}
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    defaultValue={line.regularHours ?? ""}
-                    className="ml-1 w-24 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs"
-                    onBlur={(e) => {
-                      const n = Number(e.target.value);
-                      if (Number.isFinite(n) && n >= 0) {
-                        void patchHourlyTotals(line.id, { regularHours: n });
-                      } else {
-                        e.target.value =
-                          line.regularHours != null ? line.regularHours.toFixed(2) : "";
-                      }
-                    }}
-                  />
-                ) : (
-                  line.regularHours?.toFixed(2) ?? "—"
-                )}
+                {line.regularHours?.toFixed(2) ?? "—"}
               </div>
               <div>
                 <span className="text-[var(--muted)]">OT h</span>{" "}
-                {draft && line.employee.payType === "HOURLY" ? (
-                  <input
-                    key={`${line.id}-ot-${line.overtimeHours ?? ""}`}
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    defaultValue={line.overtimeHours ?? ""}
-                    className="ml-1 w-24 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs"
-                    onBlur={(e) => {
-                      const n = Number(e.target.value);
-                      if (Number.isFinite(n) && n >= 0) {
-                        void patchHourlyTotals(line.id, { overtimeHours: n });
-                      } else {
-                        e.target.value =
-                          line.overtimeHours != null ? line.overtimeHours.toFixed(2) : "";
-                      }
-                    }}
-                  />
-                ) : (
-                  line.overtimeHours?.toFixed(2) ?? "—"
-                )}
+                {line.overtimeHours?.toFixed(2) ?? "—"}
               </div>
               <div>
                 <span className="text-[var(--muted)]">Regular pay</span>{" "}

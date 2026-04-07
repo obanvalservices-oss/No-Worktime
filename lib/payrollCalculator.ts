@@ -65,12 +65,84 @@ export function calculateSalaryPay(weeklyAmount: number) {
   };
 }
 
+export type ExtraRateSegment = { rate: number; hours: number };
+
+export function parseExtraRateSegments(raw: unknown): ExtraRateSegment[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ExtraRateSegment[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const rate = Number((item as { rate?: unknown }).rate);
+    const hours = Number((item as { hours?: unknown }).hours);
+    if (
+      Number.isFinite(rate) &&
+      rate >= 0 &&
+      Number.isFinite(hours) &&
+      hours >= 0
+    ) {
+      out.push({ rate, hours });
+    }
+  }
+  return out;
+}
+
 type LineSnap = {
   hourlyRateSnapshot: number | null;
   weeklySalaryAmount: number | null;
   overtimeThreshold: number;
   overtimeMultiplier: number;
+  manualRegularHours: number | null;
+  manualTotalHours: number | null;
+  extraRateSegments: unknown;
 };
+
+/** Hourly pay: clock-based split, optional manual reg/total override, optional extra rate rows. */
+export function computeHourlyLineTotals(
+  entries: TimeEntryInput[],
+  line: LineSnap
+) {
+  const rate = line.hourlyRateSnapshot ?? 0;
+  const threshold = line.overtimeThreshold;
+  const mult = line.overtimeMultiplier;
+  const manualReg = line.manualRegularHours;
+  const manualTotal = line.manualTotalHours;
+  const segments = parseExtraRateSegments(line.extraRateSegments);
+  const extraStraightPay = roundMoney(
+    segments.reduce((s, seg) => s + seg.rate * seg.hours, 0)
+  );
+
+  let regular: number;
+  let overtime: number;
+
+  if (
+    manualReg != null &&
+    manualTotal != null &&
+    Number.isFinite(manualReg) &&
+    Number.isFinite(manualTotal) &&
+    manualTotal >= manualReg
+  ) {
+    regular = manualReg;
+    overtime = manualTotal - manualReg;
+  } else {
+    const totalHours = sumWeekHours(entries);
+    const split = splitRegularOvertime(totalHours, threshold);
+    regular = split.regular;
+    overtime = split.overtime;
+  }
+
+  const baseRegularPay = roundMoney(regular * rate);
+  const overtimePay = roundMoney(overtime * rate * mult);
+  const regularPay = roundMoney(baseRegularPay + extraStraightPay);
+  const grossPay = roundMoney(regularPay + overtimePay);
+
+  return {
+    regularHours: regular,
+    overtimeHours: overtime,
+    regularPay,
+    overtimePay,
+    grossPay,
+  };
+}
 
 export function computeLineTotals(
   payType: "HOURLY" | "SALARY",
@@ -81,11 +153,5 @@ export function computeLineTotals(
     const amt = line.weeklySalaryAmount ?? 0;
     return calculateSalaryPay(amt);
   }
-  const rate = line.hourlyRateSnapshot ?? 0;
-  return calculateHourlyPay(
-    entries,
-    rate,
-    line.overtimeThreshold,
-    line.overtimeMultiplier
-  );
+  return computeHourlyLineTotals(entries, line);
 }

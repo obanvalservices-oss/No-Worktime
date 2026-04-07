@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthenticatedUserId, jsonUnauthorized } from "@/lib/jwt-auth";
 import { recalculatePayrollLine } from "@/lib/payrollLineRecalc";
+import { payrollRunLinesArgs } from "@/lib/payrollLineInclude";
 
 async function assertRun(userId: string, runId: string) {
   const run = await prisma.payrollRun.findUnique({
@@ -31,12 +32,7 @@ export async function POST(
   const full = await prisma.payrollRun.findUnique({
     where: { id: run.id },
     include: {
-      lines: {
-        include: {
-          employee: true,
-          timeEntries: { orderBy: { workDate: "asc" } },
-        },
-      },
+      lines: payrollRunLinesArgs,
     },
   });
   if (!full) {
@@ -51,12 +47,7 @@ export async function POST(
     where: { id: run.id },
     include: {
       company: { select: { id: true, name: true } },
-      lines: {
-        include: {
-          employee: { include: { department: true } },
-          timeEntries: { orderBy: { workDate: "asc" } },
-        },
-      },
+      lines: payrollRunLinesArgs,
     },
   });
   return NextResponse.json(result);

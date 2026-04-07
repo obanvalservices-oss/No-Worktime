@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getAuthenticatedUserId, jsonUnauthorized } from "@/lib/jwt-auth";
 import { assertSevenDayPeriod, enumerateInclusiveDates } from "@/lib/dates";
+import { payrollRunLinesArgs } from "@/lib/payrollLineInclude";
 
 export async function GET(
   request: Request,
@@ -107,12 +108,7 @@ export async function POST(
   const full = await prisma.payrollRun.findUnique({
     where: { id: run.id },
     include: {
-      lines: {
-        include: {
-          employee: { include: { department: true } },
-          timeEntries: { orderBy: { workDate: "asc" } },
-        },
-      },
+      lines: payrollRunLinesArgs,
     },
   });
   return NextResponse.json(full, { status: 201 });
