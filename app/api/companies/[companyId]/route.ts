@@ -10,12 +10,12 @@ const patchSchema = z.object({
 
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ companyId: string }> }
 ) {
   const auth = await requireManagementAccess(request);
   if (auth instanceof NextResponse) return auth;
   const { userId } = auth;
-  const { id } = await params;
+  const { companyId: id } = await params;
 
   const body = await request.json();
   const parsed = patchSchema.partial().safeParse(body);
@@ -42,12 +42,12 @@ export async function PATCH(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ companyId: string }> }
 ) {
   const auth = await requireManagementAccess(request);
   if (auth instanceof NextResponse) return auth;
   const { userId } = auth;
-  const { id } = await params;
+  const { companyId: id } = await params;
 
   const existing = await prisma.company.findFirst({
     where: { id, ownerId: userId },
