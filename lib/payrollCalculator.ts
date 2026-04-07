@@ -26,9 +26,24 @@ export function splitRegularOvertime(
   return { regular, overtime };
 }
 
-export function roundMoney(n: number): number {
-  return Math.round(n * 100) / 100;
+/**
+ * Round to exactly 2 decimal places using **half-up** (commercial rounding):
+ * look at the third decimal — digits **5–9** round up, **0–4** round down.
+ * Uses micro-unit scaling so values like **1.005** round to **1.01**, not **1.00**.
+ * Use for **money** and **hour** totals stored or shown to 2 decimals.
+ */
+export function roundTwoDecimalsHalfUp(value: number): number {
+  if (!Number.isFinite(value)) return value;
+  if (value === 0) return 0;
+  const sign = value < 0 ? -1 : 1;
+  const x = Math.abs(value);
+  const scaled = Math.round(x * 1e6);
+  const units = Math.floor(scaled / 1e4 + 0.5);
+  return sign * (units / 100);
 }
+
+/** @deprecated Prefer {@link roundTwoDecimalsHalfUp} — same implementation. */
+export const roundMoney = roundTwoDecimalsHalfUp;
 
 export function calculateHourlyPay(
   entries: TimeEntryInput[],
@@ -38,9 +53,9 @@ export function calculateHourlyPay(
 ) {
   const totalHours = sumWeekHours(entries);
   const { regular, overtime } = splitRegularOvertime(totalHours, threshold);
-  const regularPay = roundMoney(regular * hourlyRate);
-  const overtimePay = roundMoney(overtime * hourlyRate * multiplier);
-  const grossPay = roundMoney(regularPay + overtimePay);
+  const regularPay = roundTwoDecimalsHalfUp(regular * hourlyRate);
+  const overtimePay = roundTwoDecimalsHalfUp(overtime * hourlyRate * multiplier);
+  const grossPay = roundTwoDecimalsHalfUp(regularPay + overtimePay);
   return {
     totalHours,
     totalHHMM: decimalHoursToHHMM(totalHours),
@@ -53,7 +68,7 @@ export function calculateHourlyPay(
 }
 
 export function calculateSalaryPay(weeklyAmount: number) {
-  const grossPay = roundMoney(weeklyAmount);
+  const grossPay = roundTwoDecimalsHalfUp(weeklyAmount);
   return {
     totalHours: 0,
     totalHHMM: "00:00",
@@ -95,6 +110,16 @@ export function parseExtraRateSegments(raw: unknown): ExtraRateSegment[] {
   return out;
 }
 
+export function sumSegmentHours(
+  segments: ExtraRateSegment[],
+  bucket: RateBucket
+): number {
+  return segments.reduce((s, seg) => {
+    if (seg.bucket !== bucket) return s;
+    return s + seg.hours;
+  }, 0);
+}
+
 type LineSnap = {
   hourlyRateSnapshot: number | null;
   weeklySalaryAmount: number | null;
@@ -105,7 +130,7 @@ type LineSnap = {
   extraRateSegments: unknown;
 };
 
-/** Hourly pay: clock-based split, optional manual reg/OT override, optional extra rate rows. */
+/** Hourly pay: clock/manual base hours + optional extra rate rows (hours & $). */
 export function computeHourlyLineTotals(
   entries: TimeEntryInput[],
   line: LineSnap
@@ -117,20 +142,9 @@ export function computeHourlyLineTotals(
   const manualOt = line.manualOvertimeHours;
   const segments = parseExtraRateSegments(line.extraRateSegments);
 
-  let extraRegularPay = 0;
-  let extraOvertimePay = 0;
-  for (const seg of segments) {
-    if (seg.bucket === "OVERTIME") {
-      extraOvertimePay += roundMoney(seg.rate * seg.hours * mult);
-    } else {
-      extraRegularPay += roundMoney(seg.rate * seg.hours);
-    }
-  }
-  extraRegularPay = roundMoney(extraRegularPay);
-  extraOvertimePay = roundMoney(extraOvertimePay);
-
-  let regular: number;
-  let overtime: number;
+  /** Core reg/OT hours from clocks or manual override (employee snapshot rate applies here). */
+  let mainRegular: number;
+  let mainOvertime: number;
 
   if (
     manualReg != null &&
@@ -140,24 +154,51 @@ export function computeHourlyLineTotals(
     manualReg >= 0 &&
     manualOt >= 0
   ) {
-    regular = manualReg;
-    overtime = manualOt;
+    mainRegular = manualReg;
+    mainOvertime = manualOt;
   } else {
     const totalHours = sumWeekHours(entries);
     const split = splitRegularOvertime(totalHours, threshold);
-    regular = split.regular;
-    overtime = split.overtime;
+    mainRegular = split.regular;
+    mainOvertime = split.overtime;
   }
 
-  const baseRegularPay = roundMoney(regular * rate);
-  const baseOvertimePay = roundMoney(overtime * rate * mult);
-  const regularPay = roundMoney(baseRegularPay + extraRegularPay);
-  const overtimePay = roundMoney(baseOvertimePay + extraOvertimePay);
-  const grossPay = roundMoney(regularPay + overtimePay);
+  const hoursFromSegmentsRegular = sumSegmentHours(segments, "REGULAR");
+  const hoursFromSegmentsOvertime = sumSegmentHours(segments, "OVERTIME");
+
+  /** Display/stored hours: main (clocks or manual) + additional-rate rows in each bucket. */
+  const regularHours = roundTwoDecimalsHalfUp(
+    mainRegular + hoursFromSegmentsRegular
+  );
+  const overtimeHours = roundTwoDecimalsHalfUp(
+    mainOvertime + hoursFromSegmentsOvertime
+  );
+
+  // Pay: base employee rate on main hours, then add straight $ from extra rows (sum raw, round once).
+  let extraRegularPayRaw = 0;
+  let extraOvertimePayRaw = 0;
+  for (const seg of segments) {
+    if (seg.bucket === "OVERTIME") {
+      extraOvertimePayRaw += seg.rate * seg.hours * mult;
+    } else {
+      extraRegularPayRaw += seg.rate * seg.hours;
+    }
+  }
+
+  const baseRegularPayRaw = mainRegular * rate;
+  const baseOvertimePayRaw = mainOvertime * rate * mult;
+
+  const regularPay = roundTwoDecimalsHalfUp(
+    baseRegularPayRaw + extraRegularPayRaw
+  );
+  const overtimePay = roundTwoDecimalsHalfUp(
+    baseOvertimePayRaw + extraOvertimePayRaw
+  );
+  const grossPay = roundTwoDecimalsHalfUp(regularPay + overtimePay);
 
   return {
-    regularHours: regular,
-    overtimeHours: overtime,
+    regularHours,
+    overtimeHours,
     regularPay,
     overtimePay,
     grossPay,

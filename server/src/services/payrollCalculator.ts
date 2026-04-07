@@ -25,9 +25,20 @@ export function splitRegularOvertime(
   return { regular, overtime };
 }
 
-export function roundMoney(n: number): number {
-  return Math.round(n * 100) / 100;
+/**
+ * Round to 2 decimals, half-up (third digit 5+ up, 4- down). Micro-scale to avoid float drift (e.g. 1.005 → 1.01).
+ */
+export function roundTwoDecimalsHalfUp(value: number): number {
+  if (!Number.isFinite(value)) return value;
+  if (value === 0) return 0;
+  const sign = value < 0 ? -1 : 1;
+  const x = Math.abs(value);
+  const scaled = Math.round(x * 1e6);
+  const units = Math.floor(scaled / 1e4 + 0.5);
+  return sign * (units / 100);
 }
+
+export const roundMoney = roundTwoDecimalsHalfUp;
 
 export function calculateHourlyPay(
   entries: TimeEntryInput[],
@@ -45,9 +56,9 @@ export function calculateHourlyPay(
 } {
   const totalHours = sumWeekHours(entries);
   const { regular, overtime } = splitRegularOvertime(totalHours, threshold);
-  const regularPay = roundMoney(regular * hourlyRate);
-  const overtimePay = roundMoney(overtime * hourlyRate * multiplier);
-  const grossPay = roundMoney(regularPay + overtimePay);
+  const regularPay = roundTwoDecimalsHalfUp(regular * hourlyRate);
+  const overtimePay = roundTwoDecimalsHalfUp(overtime * hourlyRate * multiplier);
+  const grossPay = roundTwoDecimalsHalfUp(regularPay + overtimePay);
   return {
     totalHours,
     totalHHMM: decimalHoursToHHMM(totalHours),
@@ -68,7 +79,7 @@ export function calculateSalaryPay(weeklyAmount: number): {
   overtimePay: number;
   grossPay: number;
 } {
-  const grossPay = roundMoney(weeklyAmount);
+  const grossPay = roundTwoDecimalsHalfUp(weeklyAmount);
   return {
     totalHours: 0,
     totalHHMM: "00:00",
