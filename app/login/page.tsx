@@ -108,13 +108,13 @@ function LoginFormCard(props: {
   return (
     <div
       className="login-disc-frame overflow-hidden rounded-full shadow-xl shadow-black/30 backdrop-blur-xl
-        w-[min(92vw,calc(92dvh-32px),480px)] h-[min(92vw,calc(92dvh-32px),480px)] max-w-[480px] max-h-[480px]"
+        w-[min(94vw,calc(94dvh-20px),600px)] h-[min(94vw,calc(94dvh-20px),600px)] max-w-[600px] max-h-[600px]"
     >
       <div className="login-disc-shine" aria-hidden />
       <div
         className={`absolute inset-[3px] sm:inset-[3.5px] z-[2] flex min-h-0 flex-col overflow-hidden rounded-full ${cardBg}`}
       >
-        <div className="login-disc-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-[clamp(1.65rem,11vw,2.75rem)] pt-4 sm:pt-5 pb-8 sm:pb-10 text-zinc-100">
+        <div className="login-disc-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-[clamp(1.65rem,11vw,2.75rem)] pt-4 sm:pt-5 pb-10 sm:pb-12 text-zinc-100">
           <div className="flex flex-col items-center text-center mb-4">
             <BrandLogo size={120} className="mb-2 drop-shadow-lg" />
             <Wordmark
