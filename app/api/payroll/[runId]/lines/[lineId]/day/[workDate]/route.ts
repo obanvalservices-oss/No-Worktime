@@ -4,13 +4,15 @@ import { prisma } from "@/lib/prisma";
 import { requireManagementAccess } from "@/lib/auth/api-session";
 import { normalizeClockString } from "@/lib/time";
 import { recalculatePayrollLine } from "@/lib/payrollLineRecalc";
+import type { UserRole } from "@/lib/auth/roles";
+import { canAccessCompany } from "@/lib/auth/company-access";
 
-async function assertRun(userId: string, runId: string) {
+async function assertRun(userId: string, role: UserRole, runId: string) {
   const run = await prisma.payrollRun.findUnique({
     where: { id: runId },
     include: { company: true },
   });
-  if (!run || run.company.ownerId !== userId) return null;
+  if (!run || !(await canAccessCompany(userId, role, run.companyId))) return null;
   return run;
 }
 
@@ -27,10 +29,10 @@ export async function PATCH(
 ) {
   const auth = await requireManagementAccess(request);
   if (auth instanceof NextResponse) return auth;
-  const { userId } = auth;
+  const { userId, role } = auth;
   const { runId, lineId, workDate } = await params;
 
-  const run = await assertRun(userId, runId);
+  const run = await assertRun(userId, role, runId);
   if (!run || run.status === "FINALIZED") {
     return NextResponse.json(
       { message: run ? "Cannot edit finalized payroll" : "Not found" },

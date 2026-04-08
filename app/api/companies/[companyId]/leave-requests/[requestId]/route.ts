@@ -4,12 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireManagementAccess } from "@/lib/auth/api-session";
 import { buildLeaveApprovalPdf } from "@/lib/leave-requests/buildApprovalPdf";
 import { leaveTypeLabel } from "@/lib/leave-requests/labels";
-
-async function assertCompany(userId: string, companyId: string) {
-  return prisma.company.findFirst({
-    where: { id: companyId, ownerId: userId },
-  });
-}
+import { canAccessCompany } from "@/lib/auth/company-access";
 
 const patchSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("approve") }),
@@ -27,10 +22,10 @@ export async function PATCH(
 ) {
   const auth = await requireManagementAccess(request);
   if (auth instanceof NextResponse) return auth;
-  const { userId } = auth;
+  const { userId, role } = auth;
   const { companyId, requestId } = await params;
 
-  if (!(await assertCompany(userId, companyId))) {
+  if (!(await canAccessCompany(userId, role, companyId))) {
     return NextResponse.json({ message: "Company not found" }, { status: 404 });
   }
 

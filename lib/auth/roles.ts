@@ -27,3 +27,4 @@ export function canManageCompany(role: UserRole): boolean {
 /** Stable arrays for `RequireRole` (avoid new array literals each render). */
 export const ALLOW_MANAGEMENT: readonly UserRole[] = ["ADMIN", "EMPLOYER"];
 export const ALLOW_EMPLOYEE_PORTAL: readonly UserRole[] = ["EMPLOYEE"];
+export const ALLOW_ADMIN: readonly UserRole[] = ["ADMIN"];

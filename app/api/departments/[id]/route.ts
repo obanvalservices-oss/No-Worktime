@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireManagementAccess } from "@/lib/auth/api-session";
+import { canAccessCompany } from "@/lib/auth/company-access";
 
 const patchSchema = z.object({
   name: z.string().min(1),
@@ -14,14 +15,14 @@ export async function PATCH(
 ) {
   const auth = await requireManagementAccess(request);
   if (auth instanceof NextResponse) return auth;
-  const { userId } = auth;
+  const { userId, role } = auth;
   const { id } = await params;
 
   const dep = await prisma.department.findUnique({
     where: { id },
     include: { company: true },
   });
-  if (!dep || dep.company.ownerId !== userId) {
+  if (!dep || !(await canAccessCompany(userId, role, dep.companyId))) {
     return NextResponse.json({ message: "Not found" }, { status: 404 });
   }
   const body = await request.json();
@@ -47,14 +48,14 @@ export async function DELETE(
 ) {
   const auth = await requireManagementAccess(request);
   if (auth instanceof NextResponse) return auth;
-  const { userId } = auth;
+  const { userId, role } = auth;
   const { id } = await params;
 
   const dep = await prisma.department.findUnique({
     where: { id },
     include: { company: true },
   });
-  if (!dep || dep.company.ownerId !== userId) {
+  if (!dep || !(await canAccessCompany(userId, role, dep.companyId))) {
     return NextResponse.json({ message: "Not found" }, { status: 404 });
   }
   await prisma.department.delete({ where: { id } });

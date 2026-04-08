@@ -3,15 +3,17 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireManagementAccess } from "@/lib/auth/api-session";
 import { recalculatePayrollLine } from "@/lib/payrollLineRecalc";
+import type { UserRole } from "@/lib/auth/roles";
+import { canAccessCompany } from "@/lib/auth/company-access";
 
 const rateBucketSchema = z.enum(["REGULAR", "OVERTIME"]);
 
-async function assertRun(userId: string, runId: string) {
+async function assertRun(userId: string, role: UserRole, runId: string) {
   const run = await prisma.payrollRun.findUnique({
     where: { id: runId },
     include: { company: true },
   });
-  if (!run || run.company.ownerId !== userId) return null;
+  if (!run || !(await canAccessCompany(userId, role, run.companyId))) return null;
   return run;
 }
 
@@ -39,10 +41,10 @@ export async function PATCH(
 ) {
   const auth = await requireManagementAccess(request);
   if (auth instanceof NextResponse) return auth;
-  const { userId } = auth;
+  const { userId, role } = auth;
   const { runId, lineId } = await params;
 
-  const run = await assertRun(userId, runId);
+  const run = await assertRun(userId, role, runId);
   if (!run || run.status === "FINALIZED") {
     return NextResponse.json(
       { message: run ? "Cannot edit finalized payroll" : "Not found" },
@@ -123,4 +125,33 @@ export async function PATCH(
     },
   });
   return NextResponse.json(updated);
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ runId: string; lineId: string }> }
+) {
+  const auth = await requireManagementAccess(request);
+  if (auth instanceof NextResponse) return auth;
+  const { userId, role } = auth;
+  const { runId, lineId } = await params;
+
+  const run = await assertRun(userId, role, runId);
+  if (!run || run.status === "FINALIZED") {
+    return NextResponse.json(
+      { message: run ? "Cannot edit finalized payroll" : "Not found" },
+      { status: run ? 400 : 404 }
+    );
+  }
+
+  const line = await prisma.payrollLine.findFirst({
+    where: { id: lineId, runId: run.id },
+    select: { id: true },
+  });
+  if (!line) {
+    return NextResponse.json({ message: "Line not found" }, { status: 404 });
+  }
+
+  await prisma.payrollLine.delete({ where: { id: line.id } });
+  return new NextResponse(null, { status: 204 });
 }

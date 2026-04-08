@@ -3,12 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireManagementAccess } from "@/lib/auth/api-session";
 import { compareIsoDates } from "@/lib/leave-requests/dates";
-
-async function assertCompany(userId: string, companyId: string) {
-  return prisma.company.findFirst({
-    where: { id: companyId, ownerId: userId },
-  });
-}
+import { canAccessCompany } from "@/lib/auth/company-access";
 
 export async function GET(
   request: Request,
@@ -16,10 +11,10 @@ export async function GET(
 ) {
   const auth = await requireManagementAccess(request);
   if (auth instanceof NextResponse) return auth;
-  const { userId } = auth;
+  const { userId, role } = auth;
   const { companyId } = await params;
 
-  if (!(await assertCompany(userId, companyId))) {
+  if (!(await canAccessCompany(userId, role, companyId))) {
     return NextResponse.json({ message: "Company not found" }, { status: 404 });
   }
 

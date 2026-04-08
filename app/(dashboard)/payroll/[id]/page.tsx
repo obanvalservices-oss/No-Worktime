@@ -54,7 +54,15 @@ interface Run {
   startDate: string;
   endDate: string;
   status: "DRAFT" | "FINALIZED";
+  company: { id: string; name: string };
   lines: Line[];
+}
+
+interface EmployeeOption {
+  id: string;
+  name: string;
+  payType: "HOURLY" | "SALARY";
+  isActive: boolean;
 }
 
 function HourlyManualTools({
@@ -263,6 +271,8 @@ export default function PayrollRunPage() {
   const [run, setRun] = useState<Run | null>(null);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const [employees, setEmployees] = useState<EmployeeOption[]>([]);
+  const [employeeToAdd, setEmployeeToAdd] = useState("");
 
   const load = useCallback(async () => {
     if (!runId) return;
@@ -273,6 +283,30 @@ export default function PayrollRunPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!run?.company?.id || run.status !== "DRAFT") {
+      setEmployees([]);
+      setEmployeeToAdd("");
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { data } = await api.get<EmployeeOption[]>(
+          `/api/employees/company/${run.company.id}`
+        );
+        if (cancelled) return;
+        const active = data.filter((e) => e.isActive);
+        setEmployees(active);
+      } catch {
+        if (!cancelled) setEmployees([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [run?.company?.id, run?.status]);
 
   const patchDay = async (
     lineId: string,
@@ -333,11 +367,47 @@ export default function PayrollRunPage() {
     }
   };
 
+  const addEmployeeToRun = async () => {
+    if (!runId || !employeeToAdd || run?.status !== "DRAFT") return;
+    setBusy(true);
+    setMsg("");
+    try {
+      const { data } = await api.post<Run>(`/api/payroll/${runId}/lines`, {
+        employeeId: employeeToAdd,
+      });
+      setRun(data);
+      setEmployeeToAdd("");
+      setMsg("Employee added to this payroll run.");
+    } catch {
+      setMsg("Could not add employee to this run.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeEmployeeFromRun = async (lineId: string) => {
+    if (!runId || run?.status !== "DRAFT") return;
+    if (!confirm("Remove this employee from the payroll run?")) return;
+    setBusy(true);
+    setMsg("");
+    try {
+      await api.delete(`/api/payroll/${runId}/lines/${lineId}`);
+      await load();
+      setMsg("Employee removed from this payroll run.");
+    } catch {
+      setMsg("Could not remove employee from this run.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (!run) {
     return <div className="text-[var(--muted)]">Loading…</div>;
   }
 
   const draft = run.status === "DRAFT";
+  const runEmployeeIds = new Set(run.lines.map((l) => l.employee.id));
+  const addableEmployees = employees.filter((e) => !runEmployeeIds.has(e.id));
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -381,6 +451,32 @@ export default function PayrollRunPage() {
         </div>
       </div>
       {msg && <p className="no-print text-sm text-brand-msg mb-4">{msg}</p>}
+      {draft && (
+        <div className="no-print mb-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 flex flex-wrap items-center gap-2">
+          <span className="text-sm text-[var(--muted)]">Include employee in this run</span>
+          <select
+            value={employeeToAdd}
+            onChange={(e) => setEmployeeToAdd(e.target.value)}
+            className="min-w-[220px] rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm"
+          >
+            <option value="">Select employee</option>
+            {addableEmployees.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.name} ({e.payType})
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            disabled={busy || !employeeToAdd}
+            onClick={() => void addEmployeeToRun()}
+            className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-sm disabled:opacity-60"
+          >
+            <Plus className="w-4 h-4" />
+            Add employee
+          </button>
+        </div>
+      )}
 
       <div className="space-y-10">
         {run.lines.map((line, idx) => (
@@ -398,12 +494,24 @@ export default function PayrollRunPage() {
                   {line.employee.department.name} · {line.employee.payType}
                 </div>
               </div>
-              {line.employee.payType === "HOURLY" && (
-                <div className="text-sm text-[var(--muted)]">
-                  Rate ${line.hourlyRateSnapshot?.toFixed(2) ?? "—"}/hr · OT over{" "}
-                  {line.overtimeThreshold}h @ {line.overtimeMultiplier}×
-                </div>
-              )}
+              <div className="flex items-center gap-3">
+                {line.employee.payType === "HOURLY" && (
+                  <div className="text-sm text-[var(--muted)]">
+                    Rate ${line.hourlyRateSnapshot?.toFixed(2) ?? "—"}/hr · OT over{" "}
+                    {line.overtimeThreshold}h @ {line.overtimeMultiplier}×
+                  </div>
+                )}
+                {draft && (
+                  <button
+                    type="button"
+                    onClick={() => void removeEmployeeFromRun(line.id)}
+                    className="inline-flex items-center gap-1 rounded-md border border-red-300 px-2.5 py-1 text-xs text-red-700 hover:bg-red-50 dark:border-red-500/40 dark:text-red-300 dark:hover:bg-red-950/30"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Remove
+                  </button>
+                )}
+              </div>
             </div>
 
             {line.employee.payType === "HOURLY" && (

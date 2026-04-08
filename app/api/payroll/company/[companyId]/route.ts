@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireManagementAccess } from "@/lib/auth/api-session";
 import { assertSevenDayPeriod, enumerateInclusiveDates } from "@/lib/dates";
 import { payrollRunLinesArgs } from "@/lib/payrollLineInclude";
+import { canAccessCompany } from "@/lib/auth/company-access";
 
 export async function GET(
   request: Request,
@@ -11,13 +12,10 @@ export async function GET(
 ) {
   const auth = await requireManagementAccess(request);
   if (auth instanceof NextResponse) return auth;
-  const { userId } = auth;
+  const { userId, role } = auth;
   const { companyId } = await params;
 
-  const c = await prisma.company.findFirst({
-    where: { id: companyId, ownerId: userId },
-  });
-  if (!c) {
+  if (!(await canAccessCompany(userId, role, companyId))) {
     return NextResponse.json({ message: "Company not found" }, { status: 404 });
   }
   const runs = await prisma.payrollRun.findMany({
@@ -40,13 +38,10 @@ export async function POST(
 ) {
   const auth = await requireManagementAccess(request);
   if (auth instanceof NextResponse) return auth;
-  const { userId } = auth;
+  const { userId, role } = auth;
   const { companyId } = await params;
 
-  const c = await prisma.company.findFirst({
-    where: { id: companyId, ownerId: userId },
-  });
-  if (!c) {
+  if (!(await canAccessCompany(userId, role, companyId))) {
     return NextResponse.json({ message: "Company not found" }, { status: 404 });
   }
   const body = await request.json();

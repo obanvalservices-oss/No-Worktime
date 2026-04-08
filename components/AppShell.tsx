@@ -32,6 +32,8 @@ const operationalNav = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
+const adminNav = [{ href: "/admin/users", label: "User Access", icon: Users }];
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   return <AppShellInner>{children}</AppShellInner>;
 }
@@ -61,7 +63,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           <Wordmark size="sm" className="leading-tight min-w-0 max-[380px]:hidden" />
         </Link>
         <nav className="flex md:flex-col gap-1 flex-1 md:flex-none overflow-x-auto">
-          {operationalNav.map(({ href, label, icon: Icon }) => {
+          {[...operationalNav, ...(user?.role === "ADMIN" ? adminNav : [])].map(({ href, label, icon: Icon }) => {
             const isActive = pathname === href || pathname.startsWith(`${href}/`);
             return (
               <Link
