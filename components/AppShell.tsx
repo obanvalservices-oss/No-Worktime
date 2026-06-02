@@ -53,7 +53,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   }, [dark]);
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row">
+    <div className="app-shell-root min-h-screen flex flex-col md:flex-row print:block print:min-h-0">
       <aside className="no-print border-b md:border-b-0 md:border-r border-[var(--border)] md:w-56 shrink-0 p-4 flex flex-row md:flex-col gap-4 md:gap-6 bg-[var(--surface)] backdrop-blur-md">
         <Link
           href="/dashboard"
@@ -92,7 +92,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         </button>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="app-shell-content flex-1 flex flex-col min-w-0 print:w-full print:overflow-visible">
         <header className="no-print border-b border-[var(--border)] px-4 py-3 flex flex-wrap items-center gap-3 bg-[var(--surface)] backdrop-blur-md">
           <div className="flex items-center gap-2 flex-1 min-w-[200px]">
             <label className="text-xs text-[var(--muted)] shrink-0">Company</label>
@@ -136,7 +136,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         </header>
 
         <motion.main
-          className="flex-1 p-4 md:p-8 overflow-auto"
+          className="app-shell-main flex-1 p-4 md:p-8 overflow-auto print:overflow-visible print:p-0"
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25 }}

@@ -445,16 +445,77 @@ body {
 }
 
 @media print {
+  @page {
+    margin: 12mm;
+    size: auto;
+  }
+
+  html,
+  body {
+    overflow: visible !important;
+    height: auto !important;
+    width: 100% !important;
+    margin: 0 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
   .no-print {
     display: none !important;
   }
+
   body,
   .app-canvas {
     background: white !important;
     color: black;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background-image: none !important;
+    background-attachment: scroll !important;
   }
+
   .app-canvas::before,
   .app-canvas::after {
     display: none !important;
+  }
+
+  /* Shell layout: avoid scroll containers in print/PDF preview */
+  .app-shell-root,
+  .app-shell-content,
+  .app-shell-main,
+  .payroll-report-root {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  .app-shell-main {
+    padding: 0 !important;
+  }
+
+  .payroll-report-root {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .payroll-report-table-wrap {
+    overflow: visible !important;
+  }
+
+  .payroll-report-table {
+    min-width: 0 !important;
+    width: 100% !important;
+    table-layout: fixed;
+    font-size: 10px;
+  }
+
+  .payroll-report-table th,
+  .payroll-report-table td {
+    padding: 4px 6px !important;
+    word-break: break-word;
+    overflow-wrap: anywhere;
   }
 }

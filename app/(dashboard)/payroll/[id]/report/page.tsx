@@ -62,7 +62,7 @@ export default function PayrollReportPage() {
   );
 
   return (
-    <div className="max-w-4xl mx-auto print:max-w-none">
+    <div className="payroll-report-root max-w-4xl mx-auto print:max-w-none print:mx-0">
       <div className="no-print mb-6 flex gap-3">
         <Link
           href={`/payroll/${run.id}`}
@@ -87,8 +87,8 @@ export default function PayrollReportPage() {
         </p>
       </header>
 
-      <div className="overflow-x-auto mb-8">
-        <table className="w-full min-w-[640px] text-sm border-collapse">
+      <div className="payroll-report-table-wrap overflow-x-auto print:overflow-visible mb-8">
+        <table className="payroll-report-table w-full min-w-[640px] print:min-w-0 text-sm border-collapse">
           <thead>
             <tr className="border-b border-[var(--border)] text-left">
               <th className="py-2 pr-2">Employee</th>
