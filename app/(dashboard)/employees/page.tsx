@@ -5,7 +5,8 @@ import axios from "axios";
 import { motion } from "framer-motion";
 import api from "@/lib/api";
 import { useCompany } from "@/context/CompanyContext";
-import { Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Pencil, Trash2 } from "lucide-react";
 
 interface Department {
   id: string;
@@ -126,13 +127,23 @@ function EmployeeRow({
           )}
         </div>
       </div>
-      <button
-        type="button"
-        onClick={onRemove}
-        className="p-2 rounded-lg text-[var(--muted)] hover:bg-red-500/10 hover:text-red-500 self-start"
-      >
-        <Trash2 className="w-4 h-4" />
-      </button>
+      <div className="flex items-center gap-1 self-start shrink-0">
+        <Link
+          href={`/employees/${emp.id}`}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text)] hover:bg-[var(--accent-muted)]/30 transition-colors"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+          Edit profile
+        </Link>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="p-2 rounded-lg text-[var(--muted)] hover:bg-red-500/10 hover:text-red-500"
+          aria-label="Delete employee"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
     </motion.li>
   );
 }

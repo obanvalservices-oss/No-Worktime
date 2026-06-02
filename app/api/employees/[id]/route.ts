@@ -15,6 +15,29 @@ const employeeSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const auth = await requireManagementAccess(request);
+  if (auth instanceof NextResponse) return auth;
+  const { userId, role } = auth;
+  const { id } = await params;
+
+  const employee = await prisma.employee.findUnique({
+    where: { id },
+    include: {
+      department: { select: { id: true, name: true, kind: true } },
+      company: { select: { id: true, name: true } },
+      user: { select: { id: true, email: true } },
+    },
+  });
+  if (!employee || !(await canAccessCompany(userId, role, employee.companyId))) {
+    return NextResponse.json({ message: "Not found" }, { status: 404 });
+  }
+  return NextResponse.json(employee);
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -45,6 +68,28 @@ export async function PATCH(
     }
   }
   const payType = parsed.data.payType ?? existing.payType;
+  const hourlyRate =
+    parsed.data.hourlyRate !== undefined ? parsed.data.hourlyRate : existing.hourlyRate;
+  const weeklyBaseSalary =
+    parsed.data.weeklyBaseSalary !== undefined
+      ? parsed.data.weeklyBaseSalary
+      : existing.weeklyBaseSalary;
+  if (payType === "HOURLY" && parsed.data.hourlyRate !== undefined) {
+    if (hourlyRate == null || hourlyRate <= 0) {
+      return NextResponse.json(
+        { message: "Hourly employees need hourlyRate > 0" },
+        { status: 400 }
+      );
+    }
+  }
+  if (payType === "SALARY" && parsed.data.weeklyBaseSalary !== undefined) {
+    if (weeklyBaseSalary == null || weeklyBaseSalary < 0) {
+      return NextResponse.json(
+        { message: "Salary employees need weeklyBaseSalary" },
+        { status: 400 }
+      );
+    }
+  }
   const e = await prisma.employee.update({
     where: { id },
     data: {
