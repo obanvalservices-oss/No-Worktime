@@ -14,6 +14,7 @@ import {
   Settings,
   FileText,
   Inbox,
+  ClipboardList,
 } from "lucide-react";
 import { useCompany } from "@/context/CompanyContext";
 import { useAuth } from "@/context/AuthContext";
@@ -29,6 +30,7 @@ const operationalNav = [
   { href: "/documents", label: "Documents", icon: FileText },
   { href: "/requests", label: "Requests", icon: Inbox },
   { href: "/payroll", label: "Payroll", icon: Wallet },
+  { href: "/reports", label: "Reports", icon: ClipboardList },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -64,7 +66,11 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         </Link>
         <nav className="flex md:flex-col gap-1 flex-1 md:flex-none overflow-x-auto">
           {[...operationalNav, ...(user?.role === "ADMIN" ? adminNav : [])].map(({ href, label, icon: Icon }) => {
-            const isActive = pathname === href || pathname.startsWith(`${href}/`);
+            const isActive =
+              pathname === href ||
+              (href === "/reports"
+                ? pathname.startsWith("/reports")
+                : pathname.startsWith(`${href}/`));
             return (
               <Link
                 key={href}
