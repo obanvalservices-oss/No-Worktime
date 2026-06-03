@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { useCompany } from "@/context/CompanyContext";
 import {
@@ -16,7 +16,15 @@ import {
   type ExtraRateSegment,
 } from "@/lib/payrollCalculator";
 import { motion } from "framer-motion";
-import { Calculator, Lock, Plus, Printer, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Calculator,
+  Lock,
+  Pencil,
+  Plus,
+  Printer,
+  Trash2,
+} from "lucide-react";
 
 interface TimeEntry {
   id: string;
@@ -64,6 +72,86 @@ interface EmployeeOption {
   name: string;
   payType: "HOURLY" | "SALARY";
   isActive: boolean;
+}
+
+type PendingDayPatch = {
+  lineId: string;
+  workDate: string;
+  body: Partial<TimeEntry>;
+};
+
+type PendingLinePatch = {
+  lineId: string;
+  body: Record<string, unknown>;
+};
+
+function cloneRun(run: Run): Run {
+  return structuredClone(run);
+}
+
+function applyDayPatch(
+  run: Run,
+  lineId: string,
+  workDate: string,
+  body: Partial<TimeEntry>
+): Run {
+  return {
+    ...run,
+    lines: run.lines.map((line) =>
+      line.id !== lineId
+        ? line
+        : {
+            ...line,
+            timeEntries: line.timeEntries.map((te) =>
+              te.workDate === workDate ? { ...te, ...body } : te
+            ),
+          }
+    ),
+  };
+}
+
+function applyLinePatch(
+  run: Run,
+  lineId: string,
+  body: Record<string, unknown>
+): Run {
+  return {
+    ...run,
+    lines: run.lines.map((line) =>
+      line.id === lineId ? ({ ...line, ...body } as Line) : line
+    ),
+  };
+}
+
+function queueDayPatch(
+  pending: PendingDayPatch[],
+  lineId: string,
+  workDate: string,
+  body: Partial<TimeEntry>
+): PendingDayPatch[] {
+  const i = pending.findIndex(
+    (p) => p.lineId === lineId && p.workDate === workDate
+  );
+  if (i >= 0) {
+    const next = [...pending];
+    next[i] = { lineId, workDate, body: { ...next[i].body, ...body } };
+    return next;
+  }
+  return [...pending, { lineId, workDate, body }];
+}
+
+function queueLinePatch(
+  pending: PendingLinePatch[],
+  lineId: string,
+  body: Record<string, unknown>
+): PendingLinePatch[] {
+  const i = pending.findIndex((p) => p.lineId === lineId);
+  if (i >= 0) {
+    const next = [...pending];
+    next[i] = { lineId, body: { ...next[i].body, ...body } };
+    return next;
+  }
+  return [...pending, { lineId, body }];
 }
 
 function HourlyManualTools({
@@ -268,9 +356,15 @@ function HourlyManualTools({
 
 export default function PayrollRunPage() {
   const params = useParams();
+  const router = useRouter();
   const runId = params.id as string;
   const { company } = useCompany();
   const [run, setRun] = useState<Run | null>(null);
+  const [editRun, setEditRun] = useState<Run | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [pendingDays, setPendingDays] = useState<PendingDayPatch[]>([]);
+  const [pendingLines, setPendingLines] = useState<PendingLinePatch[]>([]);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
@@ -281,7 +375,10 @@ export default function PayrollRunPage() {
     if (!runId) return;
     const { data } = await api.get<Run>(`/api/payroll/${runId}`);
     setRun(data);
-  }, [runId]);
+    if (isEditing) {
+      setEditRun(cloneRun(data));
+    }
+  }, [runId, isEditing]);
 
   useEffect(() => {
     void load();
@@ -301,11 +398,14 @@ export default function PayrollRunPage() {
       .catch(() => setCanEditFinalized(false));
   }, [run?.company?.id, company?.id]);
 
+  const canEdit =
+    run?.status === "DRAFT" ||
+    (run?.status === "FINALIZED" && canEditFinalized);
+
+  const formEnabled = canEdit && isEditing;
+
   useEffect(() => {
-    const editable =
-      run?.status === "DRAFT" ||
-      (run?.status === "FINALIZED" && canEditFinalized);
-    if (!run?.company?.id || !editable) {
+    if (!formEnabled) {
       setEmployees([]);
       setEmployeeToAdd("");
       return;
@@ -326,52 +426,88 @@ export default function PayrollRunPage() {
     return () => {
       cancelled = true;
     };
-  }, [run?.company?.id, run?.status, canEditFinalized]);
+  }, [run?.company?.id, run?.status, canEditFinalized, formEnabled]);
 
-  const editable =
-    run?.status === "DRAFT" ||
-    (run?.status === "FINALIZED" && canEditFinalized);
+  const startEditing = () => {
+    if (!run || !canEdit) return;
+    setEditRun(cloneRun(run));
+    setPendingDays([]);
+    setPendingLines([]);
+    setDirty(false);
+    setMsg("");
+    setIsEditing(true);
+  };
 
-  const patchDay = async (
+  const goBackToList = () => {
+    if (dirty) {
+      if (!confirm("You have unsaved changes. Leave without saving?")) return;
+    }
+    router.push("/payroll");
+  };
+
+  const queueDayChange = (
     lineId: string,
     workDate: string,
     body: Partial<TimeEntry>
   ) => {
-    if (!runId || !editable) return;
+    if (!editRun) return;
+    setEditRun((prev) =>
+      prev ? applyDayPatch(prev, lineId, workDate, body) : prev
+    );
+    setPendingDays((p) => queueDayPatch(p, lineId, workDate, body));
+    setDirty(true);
+    setMsg("");
+  };
+
+  const queueLineChange = (lineId: string, body: Record<string, unknown>) => {
+    if (!editRun) return;
+    setEditRun((prev) => (prev ? applyLinePatch(prev, lineId, body) : prev));
+    setPendingLines((p) => queueLinePatch(p, lineId, body));
+    setDirty(true);
+    setMsg("");
+  };
+
+  const saveChanges = async () => {
+    if (!runId || !editRun) return;
+    setBusy(true);
+    setMsg("");
     try {
-      await api.patch(
-        `/api/payroll/${runId}/lines/${lineId}/day/${workDate}`,
-        body
-      );
-      setMsg("");
-      await load();
+      for (const p of pendingDays) {
+        await api.patch(
+          `/api/payroll/${runId}/lines/${p.lineId}/day/${p.workDate}`,
+          p.body
+        );
+      }
+      for (const p of pendingLines) {
+        await api.patch(`/api/payroll/${runId}/lines/${p.lineId}`, p.body);
+      }
+      const { data } = await api.post<Run>(`/api/payroll/${runId}/calculate`);
+      setRun(data);
+      setEditRun(cloneRun(data));
+      setPendingDays([]);
+      setPendingLines([]);
+      setDirty(false);
+      setMsg("Payroll updated.");
     } catch {
-      setMsg("Could not save time. Use HH:mm, 0905, or 930 for 9:30.");
+      setMsg("Could not save changes. Check time format (HH:mm) and try again.");
       await load();
+    } finally {
+      setBusy(false);
     }
-  };
-
-  const patchSalary = async (lineId: string, weeklySalaryAmount: number) => {
-    if (!runId || !editable) return;
-    await api.patch(`/api/payroll/${runId}/lines/${lineId}`, {
-      weeklySalaryAmount,
-    });
-    await load();
-  };
-
-  const patchLine = async (lineId: string, body: Record<string, unknown>) => {
-    if (!runId || !editable) return;
-    await api.patch(`/api/payroll/${runId}/lines/${lineId}`, body);
-    await load();
   };
 
   const calculate = async () => {
     if (!runId) return;
+    if (dirty) {
+      setMsg("Save changes first, then run Calculate.");
+      return;
+    }
     setBusy(true);
     setMsg("");
     try {
       const { data } = await api.post<Run>(`/api/payroll/${runId}/calculate`);
       setRun(data);
+      if (isEditing) setEditRun(cloneRun(data));
       setMsg("Totals updated.");
     } catch {
       setMsg("Calculate failed.");
@@ -388,17 +524,25 @@ export default function PayrollRunPage() {
       )
     )
       return;
+    if (dirty) {
+      setMsg("Save changes before finalizing.");
+      return;
+    }
     setBusy(true);
     try {
       const { data } = await api.post<Run>(`/api/payroll/${runId}/finalize`);
       setRun(data);
+      setEditRun(cloneRun(data));
+      setIsEditing(false);
+      setDirty(false);
+      setMsg("Payroll finalized.");
     } finally {
       setBusy(false);
     }
   };
 
   const addEmployeeToRun = async () => {
-    if (!runId || !employeeToAdd || !editable) return;
+    if (!runId || !employeeToAdd || !formEnabled) return;
     setBusy(true);
     setMsg("");
     try {
@@ -406,8 +550,10 @@ export default function PayrollRunPage() {
         employeeId: employeeToAdd,
       });
       setRun(data);
+      setEditRun(cloneRun(data));
       setEmployeeToAdd("");
-      setMsg("Employee added to this payroll run.");
+      setMsg("Employee added. Save changes or continue editing.");
+      setDirty(true);
     } catch {
       setMsg("Could not add employee to this run.");
     } finally {
@@ -416,14 +562,22 @@ export default function PayrollRunPage() {
   };
 
   const removeEmployeeFromRun = async (lineId: string) => {
-    if (!runId || !editable) return;
+    if (!runId || !formEnabled) return;
     if (!confirm("Remove this employee from the payroll run?")) return;
     setBusy(true);
     setMsg("");
     try {
       await api.delete(`/api/payroll/${runId}/lines/${lineId}`);
       await load();
-      setMsg("Employee removed from this payroll run.");
+      if (editRun) {
+        setEditRun((prev) =>
+          prev
+            ? { ...prev, lines: prev.lines.filter((l) => l.id !== lineId) }
+            : prev
+        );
+      }
+      setMsg("Employee removed.");
+      setDirty(false);
     } catch {
       setMsg("Could not remove employee from this run.");
     } finally {
@@ -436,17 +590,28 @@ export default function PayrollRunPage() {
   }
 
   const draft = run.status === "DRAFT";
-  const editingFinalized = run.status === "FINALIZED" && canEditFinalized;
-  const runEmployeeIds = new Set(run.lines.map((l) => l.employee.id));
+  const displayRun = isEditing && editRun ? editRun : run;
+  const runEmployeeIds = new Set(displayRun.lines.map((l) => l.employee.id));
   const addableEmployees = employees.filter((e) => !runEmployeeIds.has(e.id));
+  const msgIsSuccess = msg === "Payroll updated.";
 
   return (
     <div className="max-w-6xl mx-auto">
-      <div className="no-print flex flex-wrap items-center justify-between gap-4 mb-6">
+      <button
+        type="button"
+        onClick={goBackToList}
+        className="no-print inline-flex items-center gap-2 text-sm text-[var(--muted)] hover:text-[var(--text)] mb-4"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Back to payroll runs
+      </button>
+
+      <div className="no-print flex flex-wrap items-center justify-between gap-4 mb-4">
         <div>
           <h1 className="text-2xl font-semibold">Payroll</h1>
           <p className="text-sm text-[var(--muted)]">
             {run.startDate} → {run.endDate} · {run.status}
+            {isEditing ? " · Editing" : " · Viewing"}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -457,18 +622,38 @@ export default function PayrollRunPage() {
             <Printer className="w-4 h-4" />
             Print report
           </Link>
-          {editable && (
+          {canEdit && !isEditing && (
+            <button
+              type="button"
+              onClick={startEditing}
+              className="inline-flex items-center gap-2 btn-brand px-4 py-2 text-sm font-medium"
+            >
+              <Pencil className="w-4 h-4" />
+              Edit payroll
+            </button>
+          )}
+          {formEnabled && dirty && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void saveChanges()}
+              className="inline-flex items-center gap-2 btn-brand px-4 py-2 text-sm font-medium"
+            >
+              Save changes
+            </button>
+          )}
+          {formEnabled && (
             <button
               type="button"
               disabled={busy}
               onClick={() => calculate()}
-              className="inline-flex items-center gap-2 btn-brand px-4 py-2 text-sm font-medium"
+              className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-sm"
             >
               <Calculator className="w-4 h-4" />
               Calculate
             </button>
           )}
-          {draft && (
+          {formEnabled && draft && (
             <button
               type="button"
               disabled={busy}
@@ -481,13 +666,18 @@ export default function PayrollRunPage() {
           )}
         </div>
       </div>
-      {msg && <p className="no-print text-sm text-brand-msg mb-4">{msg}</p>}
-      {editingFinalized && (
-        <p className="no-print text-sm rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-100 px-3 py-2 mb-4">
-          Editing finalized payroll (authorized). Changes are saved to this run.
+      {msg && (
+        <p
+          className={`no-print text-sm mb-4 rounded-lg px-3 py-2 ${
+            msgIsSuccess
+              ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100"
+              : "text-brand-msg"
+          }`}
+        >
+          {msg}
         </p>
       )}
-      {editable && (
+      {formEnabled && (
         <div className="no-print mb-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 flex flex-wrap items-center gap-2">
           <span className="text-sm text-[var(--muted)]">Include employee in this run</span>
           <select
@@ -515,7 +705,7 @@ export default function PayrollRunPage() {
       )}
 
       <div className="space-y-10">
-        {run.lines.map((line, idx) => (
+        {displayRun.lines.map((line, idx) => (
           <motion.section
             key={line.id}
             initial={{ opacity: 0, y: 10 }}
@@ -537,7 +727,7 @@ export default function PayrollRunPage() {
                     {line.overtimeThreshold}h @ {line.overtimeMultiplier}×
                   </div>
                 )}
-                {editable && (
+                {formEnabled && (
                   <button
                     type="button"
                     onClick={() => void removeEmployeeFromRun(line.id)}
@@ -572,17 +762,21 @@ export default function PayrollRunPage() {
                             <td key={k} className="px-1 py-1">
                               <input
                                 key={`${te.id}-${k}-${te[k] ?? ""}`}
-                                disabled={!editable}
+                                disabled={!formEnabled}
                                 defaultValue={te[k] ?? ""}
                                 placeholder="HH:mm"
                                 className="w-[72px] rounded border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs font-mono disabled:opacity-60"
                                 onBlur={(e) => {
+                                  if (!formEnabled) return;
                                   const raw = e.target.value.trim();
                                   const cur = te[k];
                                   const normalized =
                                     raw === "" ? null : normalizeClockString(raw);
                                   if (raw !== "" && normalized === null) {
                                     e.target.value = cur ?? "";
+                                    setMsg(
+                                      "Invalid time. Use HH:mm, 0905, or 930 for 9:30."
+                                    );
                                     return;
                                   }
                                   if (normalized != null) {
@@ -590,9 +784,7 @@ export default function PayrollRunPage() {
                                   }
                                   const next = normalized;
                                   if ((next ?? "") === (cur ?? "")) return;
-                                  void patchDay(line.id, te.workDate, {
-                                    [k]: next,
-                                  });
+                                  queueDayChange(line.id, te.workDate, { [k]: next });
                                 }}
                               />
                             </td>
@@ -617,10 +809,10 @@ export default function PayrollRunPage() {
                     </tr>
                   </tfoot>
                 </table>
-                {editable && (
+                {formEnabled && (
                   <HourlyManualTools
                     line={line}
-                    onPatch={(body) => void patchLine(line.id, body)}
+                    onPatch={(body) => queueLineChange(line.id, body)}
                   />
                 )}
               </div>
@@ -636,13 +828,14 @@ export default function PayrollRunPage() {
                   type="number"
                   step="0.01"
                   min="0"
-                  disabled={!editable}
+                  disabled={!formEnabled}
                   defaultValue={line.weeklySalaryAmount ?? ""}
                   className="w-36 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm disabled:opacity-60"
                   onBlur={(e) => {
+                    if (!formEnabled) return;
                     const n = Number(e.target.value);
                     if (Number.isFinite(n) && n >= 0) {
-                      void patchSalary(line.id, n);
+                      queueLineChange(line.id, { weeklySalaryAmount: n });
                     }
                   }}
                 />

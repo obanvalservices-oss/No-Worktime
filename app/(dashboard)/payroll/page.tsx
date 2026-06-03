@@ -72,6 +72,12 @@ export default function PayrollListPage() {
             </Link>
             <div className="flex items-center gap-2 shrink-0">
               <Link
+                href={`/payroll/${r.id}`}
+                className="text-sm link-brand hover:underline"
+              >
+                Open
+              </Link>
+              <Link
                 href={`/payroll/${r.id}/report`}
                 className="text-sm link-brand hover:underline"
               >
