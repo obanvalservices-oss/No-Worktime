@@ -12,6 +12,11 @@ import {
   sumWeekHours,
 } from "@/lib/time";
 import {
+  decimalPlacesFromInputString,
+  formatDecimal,
+  roundHalfUp,
+} from "@/lib/decimalPrecision";
+import {
   parseExtraRateSegments,
   type ExtraRateSegment,
 } from "@/lib/payrollCalculator";
@@ -154,6 +159,15 @@ function queueLinePatch(
   return [...pending, { lineId, body }];
 }
 
+function parseDecimalInput(raw: string): number | null {
+  const t = raw.trim();
+  if (t === "") return null;
+  const n = Number(t);
+  if (!Number.isFinite(n) || n < 0) return null;
+  const places = decimalPlacesFromInputString(t);
+  return roundHalfUp(n, places);
+}
+
 function HourlyManualTools({
   line,
   onPatch,
@@ -189,11 +203,9 @@ function HourlyManualTools({
       void onPatch({ manualRegularHours: null, manualOvertimeHours: null });
       return;
     }
-    const r = Number(rs);
-    const o = Number(os);
-    if (!Number.isFinite(r) || !Number.isFinite(o) || r < 0 || o < 0) {
-      return;
-    }
+    const r = parseDecimalInput(rs);
+    const o = parseDecimalInput(os);
+    if (r == null || o == null) return;
     void onPatch({ manualRegularHours: r, manualOvertimeHours: o });
   };
 
@@ -206,7 +218,7 @@ function HourlyManualTools({
           Manual hour override (optional)
         </p>
         <p className="text-xs text-[var(--muted)] mb-2 leading-relaxed">
-          Clock week total: {decimalHoursToHHMM(weekClock)} ({weekClock.toFixed(2)} h).
+          Clock week total: {decimalHoursToHHMM(weekClock)} ({formatDecimal(weekClock, 2)} h).
           Leave both fields empty to use clocks for the reg/OT split. To override, enter{" "}
           <strong>regular</strong> and <strong>OT</strong> hours (both required together).
         </p>
@@ -216,7 +228,7 @@ function HourlyManualTools({
             <input
               key={`mr-${line.id}-${String(line.manualRegularHours)}-${String(line.manualOvertimeHours)}`}
               type="number"
-              step="0.01"
+              step="any"
               min="0"
               defaultValue={line.manualRegularHours ?? ""}
               className="w-28 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 text-sm font-mono"
@@ -233,7 +245,7 @@ function HourlyManualTools({
             <input
               key={`mo-${line.id}-${String(line.manualRegularHours)}-${String(line.manualOvertimeHours)}`}
               type="number"
-              step="0.01"
+              step="any"
               min="0"
               defaultValue={line.manualOvertimeHours ?? ""}
               className="w-28 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 text-sm font-mono"
@@ -295,14 +307,14 @@ function HourlyManualTools({
                 Rate $
                 <input
                   type="number"
-                  step="0.01"
+                  step="any"
                   min="0"
                   value={seg.rate}
                   className="w-24 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-sm"
                   onChange={(e) => {
-                    const n = Number(e.target.value);
+                    const parsed = parseDecimalInput(e.target.value);
                     const next = [...segments];
-                    next[i] = { ...next[i], rate: Number.isFinite(n) ? n : 0 };
+                    next[i] = { ...next[i], rate: parsed ?? 0 };
                     commitSegments(next);
                   }}
                 />
@@ -311,14 +323,14 @@ function HourlyManualTools({
                 Hours
                 <input
                   type="number"
-                  step="0.01"
+                  step="any"
                   min="0"
                   value={seg.hours}
                   className="w-24 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-sm"
                   onChange={(e) => {
-                    const n = Number(e.target.value);
+                    const parsed = parseDecimalInput(e.target.value);
                     const next = [...segments];
-                    next[i] = { ...next[i], hours: Number.isFinite(n) ? n : 0 };
+                    next[i] = { ...next[i], hours: parsed ?? 0 };
                     commitSegments(next);
                   }}
                 />
@@ -723,7 +735,7 @@ export default function PayrollRunPage() {
               <div className="flex items-center gap-3">
                 {line.employee.payType === "HOURLY" && (
                   <div className="text-sm text-[var(--muted)]">
-                    Rate ${line.hourlyRateSnapshot?.toFixed(2) ?? "—"}/hr · OT over{" "}
+                    Rate ${formatDecimal(line.hourlyRateSnapshot, 2)}/hr · OT over{" "}
                     {line.overtimeThreshold}h @ {line.overtimeMultiplier}×
                   </div>
                 )}
@@ -792,7 +804,7 @@ export default function PayrollRunPage() {
                         )}
                         <td className="px-3 py-2 text-right font-mono text-xs">
                           {decimalHoursToHHMM(sumDayHours(te))} (
-                          {sumDayHours(te).toFixed(2)}h)
+                          {formatDecimal(sumDayHours(te), 2)}h)
                         </td>
                       </tr>
                     ))}
@@ -804,7 +816,7 @@ export default function PayrollRunPage() {
                       </td>
                       <td className="px-3 py-2 text-right font-mono">
                         {decimalHoursToHHMM(sumWeekHours(line.timeEntries))} (
-                        {sumWeekHours(line.timeEntries).toFixed(2)}h)
+                        {formatDecimal(sumWeekHours(line.timeEntries), 2)}h)
                       </td>
                     </tr>
                   </tfoot>
@@ -826,15 +838,15 @@ export default function PayrollRunPage() {
                 <input
                   key={`${line.id}-${line.weeklySalaryAmount ?? ""}`}
                   type="number"
-                  step="0.01"
+                  step="any"
                   min="0"
                   disabled={!formEnabled}
                   defaultValue={line.weeklySalaryAmount ?? ""}
                   className="w-36 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm disabled:opacity-60"
                   onBlur={(e) => {
                     if (!formEnabled) return;
-                    const n = Number(e.target.value);
-                    if (Number.isFinite(n) && n >= 0) {
+                    const n = parseDecimalInput(e.target.value);
+                    if (n != null) {
                       queueLineChange(line.id, { weeklySalaryAmount: n });
                     }
                   }}
@@ -845,23 +857,23 @@ export default function PayrollRunPage() {
             <div className="px-4 py-3 bg-[var(--bg)] text-sm grid sm:grid-cols-2 md:grid-cols-4 gap-2 border-t border-[var(--border)]">
               <div>
                 <span className="text-[var(--muted)]">Regular h</span>{" "}
-                {line.regularHours?.toFixed(2) ?? "—"}
+                {formatDecimal(line.regularHours, 2)}
               </div>
               <div>
                 <span className="text-[var(--muted)]">OT h</span>{" "}
-                {line.overtimeHours?.toFixed(2) ?? "—"}
+                {formatDecimal(line.overtimeHours, 2)}
               </div>
               <div>
                 <span className="text-[var(--muted)]">Regular pay</span>{" "}
-                {line.regularPay != null ? `$${line.regularPay.toFixed(2)}` : "—"}
+                {line.regularPay != null ? `$${formatDecimal(line.regularPay, 2)}` : "—"}
               </div>
               <div>
                 <span className="text-[var(--muted)]">OT pay</span>{" "}
-                {line.overtimePay != null ? `$${line.overtimePay.toFixed(2)}` : "—"}
+                {line.overtimePay != null ? `$${formatDecimal(line.overtimePay, 2)}` : "—"}
               </div>
               <div className="sm:col-span-2 md:col-span-4 font-semibold">
                 Gross pay:{" "}
-                {line.grossPay != null ? `$${line.grossPay.toFixed(2)}` : "—"}
+                {line.grossPay != null ? `$${formatDecimal(line.grossPay, 2)}` : "—"}
               </div>
             </div>
           </motion.section>

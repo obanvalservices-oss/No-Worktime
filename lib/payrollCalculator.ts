@@ -1,3 +1,7 @@
+import {
+  inferDecimalPlaces,
+  roundHalfUp,
+} from "./decimalPrecision";
 import { diffMinutes, minutesToDecimalHours, decimalHoursToHHMM } from "./time";
 
 export type TimeEntryInput = {
@@ -26,20 +30,9 @@ export function splitRegularOvertime(
   return { regular, overtime };
 }
 
-/**
- * Round to exactly 2 decimal places using **half-up** (commercial rounding):
- * look at the third decimal — digits **5–9** round up, **0–4** round down.
- * Uses micro-unit scaling so values like **1.005** round to **1.01**, not **1.00**.
- * Use for **money** and **hour** totals stored or shown to 2 decimals.
- */
+/** Round to 2 decimals (half-up). Prefer {@link roundHalfUp} with line precision when calculating payroll. */
 export function roundTwoDecimalsHalfUp(value: number): number {
-  if (!Number.isFinite(value)) return value;
-  if (value === 0) return 0;
-  const sign = value < 0 ? -1 : 1;
-  const x = Math.abs(value);
-  const scaled = Math.round(x * 1e6);
-  const units = Math.floor(scaled / 1e4 + 0.5);
-  return sign * (units / 100);
+  return roundHalfUp(value, 2);
 }
 
 /** @deprecated Prefer {@link roundTwoDecimalsHalfUp} — same implementation. */
@@ -68,7 +61,8 @@ export function calculateHourlyPay(
 }
 
 export function calculateSalaryPay(weeklyAmount: number) {
-  const grossPay = roundTwoDecimalsHalfUp(weeklyAmount);
+  const prec = inferDecimalPlaces(weeklyAmount);
+  const grossPay = roundHalfUp(weeklyAmount, prec);
   return {
     totalHours: 0,
     totalHHMM: "00:00",
@@ -130,11 +124,54 @@ type LineSnap = {
   extraRateSegments: unknown;
 };
 
+/** Max decimal places used on this line (from rates, hours, manual overrides, segments). */
+export function inferPayrollLinePrecision(
+  entries: TimeEntryInput[],
+  line: LineSnap
+): number {
+  let max = 0;
+  const consider = (n: number | null | undefined) => {
+    if (n != null && Number.isFinite(n)) {
+      max = Math.max(max, inferDecimalPlaces(n));
+    }
+  };
+
+  consider(line.hourlyRateSnapshot);
+  consider(line.weeklySalaryAmount);
+  consider(line.manualRegularHours);
+  consider(line.manualOvertimeHours);
+  consider(line.overtimeThreshold);
+  consider(line.overtimeMultiplier);
+
+  const segments = parseExtraRateSegments(line.extraRateSegments);
+  for (const seg of segments) {
+    consider(seg.rate);
+    consider(seg.hours);
+  }
+
+  const manualActive =
+    line.manualRegularHours != null &&
+    line.manualOvertimeHours != null &&
+    Number.isFinite(line.manualRegularHours) &&
+    Number.isFinite(line.manualOvertimeHours);
+
+  if (!manualActive) {
+    consider(sumWeekHours(entries));
+    for (const e of entries) {
+      consider(sumDayHours(e));
+    }
+  }
+
+  return max;
+}
+
 /** Hourly pay: clock/manual base hours + optional extra rate rows (hours & $). */
 export function computeHourlyLineTotals(
   entries: TimeEntryInput[],
   line: LineSnap
 ) {
+  const prec = inferPayrollLinePrecision(entries, line);
+  const round = (v: number) => roundHalfUp(v, prec);
   const rate = line.hourlyRateSnapshot ?? 0;
   const threshold = line.overtimeThreshold;
   const mult = line.overtimeMultiplier;
@@ -167,12 +204,8 @@ export function computeHourlyLineTotals(
   const hoursFromSegmentsOvertime = sumSegmentHours(segments, "OVERTIME");
 
   /** Display/stored hours: main (clocks or manual) + additional-rate rows in each bucket. */
-  const regularHours = roundTwoDecimalsHalfUp(
-    mainRegular + hoursFromSegmentsRegular
-  );
-  const overtimeHours = roundTwoDecimalsHalfUp(
-    mainOvertime + hoursFromSegmentsOvertime
-  );
+  const regularHours = round(mainRegular + hoursFromSegmentsRegular);
+  const overtimeHours = round(mainOvertime + hoursFromSegmentsOvertime);
 
   // Pay: base employee rate on main hours, then add straight $ from extra rows (sum raw, round once).
   let extraRegularPayRaw = 0;
@@ -189,13 +222,9 @@ export function computeHourlyLineTotals(
   const baseRegularPayRaw = mainRegular * rate;
   const baseOvertimePayRaw = mainOvertime * rate * mult;
 
-  const regularPay = roundTwoDecimalsHalfUp(
-    baseRegularPayRaw + extraRegularPayRaw
-  );
-  const overtimePay = roundTwoDecimalsHalfUp(
-    baseOvertimePayRaw + extraOvertimePayRaw
-  );
-  const grossPay = roundTwoDecimalsHalfUp(regularPay + overtimePay);
+  const regularPay = round(baseRegularPayRaw + extraRegularPayRaw);
+  const overtimePay = round(baseOvertimePayRaw + extraOvertimePayRaw);
+  const grossPay = round(regularPay + overtimePay);
 
   return {
     regularHours,
