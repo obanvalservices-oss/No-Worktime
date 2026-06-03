@@ -3,10 +3,10 @@
   "private": true,
   "scripts": {
     "dev": "prisma generate && next dev",
-    "build": "node scripts/ensure-direct-url.cjs npx prisma generate && next build",
+    "build": "prisma generate && next build",
     "start": "next start -H 0.0.0.0 -p 3000",
-    "start:railway": "node scripts/railway-start.cjs",
-    "postinstall": "node scripts/ensure-direct-url.cjs npx prisma generate",
+    "start:railway": "next start -H 0.0.0.0",
+    "postinstall": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:migrate:deploy": "prisma migrate deploy",

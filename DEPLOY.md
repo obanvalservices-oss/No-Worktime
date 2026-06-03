@@ -13,15 +13,14 @@ Production domain: **https://no-worktime.nestorobando.com**
 
 1. **New project → Deploy from GitHub** (this repo).
 2. Add **variables** (see `.env.example`):
-   - `DATABASE_URL` — Supabase **pooler** `:6543` with `pgbouncer=true` (runtime)
-   - `DIRECT_URL` — Supabase **direct** `db.<ref>.supabase.co:5432` (migrations at startup). **Required** if `DATABASE_URL` is the pooler; without it, migrate is skipped and the app still starts.
+   - `DATABASE_URL` and `DIRECT_URL` (same as local `.env`: pooler + direct Supabase URLs)
    - `JWT_SECRET` (long random string)
    - `NEXT_PUBLIC_APP_URL` = `https://no-worktime.nestorobando.com`
    - `MASTER_USER_EMAIL` / `MASTER_USER_PASSWORD` (strong password in production)
    - `ALLOW_PUBLIC_REGISTER` = `false` unless you want open signup
    - Optional: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALLBACK_URL`
 3. **Build**: Nixpacks runs `npm run build` (`prisma generate` + `next build`).
-4. **Start**: `railway.toml` runs `npx prisma migrate deploy && npm run start` so the Postgres schema is applied before the server listens.
+4. **Start**: `railway.toml` runs `npm run start:railway` (`next start`). Apply migrations yourself when needed: `npx prisma migrate deploy` (uses `DIRECT_URL` from your env).
 5. **Custom domain**: Project → **Settings → Networking → Custom domain** → `no-worktime.nestorobando.com` and add the DNS records Railway shows (CNAME or A).
 
 ## 3. Google OAuth (optional)
@@ -47,8 +46,8 @@ SQLite is no longer used; the baseline migration is PostgreSQL-only.
 
 | Variable | Required | Notes |
 |----------|----------|--------|
-| `DATABASE_URL` | Yes | Postgres; pooler `6543` + `pgbouncer=true` for runtime, or direct `5432` if you use one URL |
-| `DIRECT_URL` | Recommended | Supabase direct `5432` for migrations; if unset, Railway startup copies `DATABASE_URL` |
+| `DATABASE_URL` | Yes | Postgres (Supabase pooler or direct) |
+| `DIRECT_URL` | Yes | Supabase direct `:5432` for Prisma (`schema.prisma` `directUrl`) |
 | `JWT_SECRET` | Yes | |
 | `NEXT_PUBLIC_APP_URL` | Yes in prod | No trailing slash |
 | `MASTER_USER_EMAIL` / `MASTER_USER_PASSWORD` | Recommended | Bootstrap admin |
