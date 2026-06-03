@@ -600,7 +600,7 @@ export default function PayrollRunPage() {
       <button
         type="button"
         onClick={goBackToList}
-        className="no-print inline-flex items-center gap-2 text-sm text-[var(--muted)] hover:text-[var(--text)] mb-4"
+        className="no-print inline-flex items-center gap-2 text-sm text-[var(--muted)] hover:text-[var(--text)] cursor-pointer mb-4"
       >
         <ArrowLeft className="w-4 h-4" />
         Back to payroll runs
@@ -617,7 +617,7 @@ export default function PayrollRunPage() {
         <div className="flex flex-wrap gap-2">
           <Link
             href={`/payroll/${run.id}/report`}
-            className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-sm"
+            className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-sm cursor-pointer"
           >
             <Printer className="w-4 h-4" />
             Print report
@@ -626,7 +626,7 @@ export default function PayrollRunPage() {
             <button
               type="button"
               onClick={startEditing}
-              className="inline-flex items-center gap-2 btn-brand px-4 py-2 text-sm font-medium"
+              className="inline-flex items-center gap-2 btn-brand px-4 py-2 text-sm font-medium cursor-pointer disabled:cursor-not-allowed"
             >
               <Pencil className="w-4 h-4" />
               Edit payroll
@@ -637,7 +637,7 @@ export default function PayrollRunPage() {
               type="button"
               disabled={busy}
               onClick={() => void saveChanges()}
-              className="inline-flex items-center gap-2 btn-brand px-4 py-2 text-sm font-medium"
+              className="inline-flex items-center gap-2 btn-brand px-4 py-2 text-sm font-medium cursor-pointer disabled:cursor-not-allowed"
             >
               Save changes
             </button>
@@ -647,7 +647,7 @@ export default function PayrollRunPage() {
               type="button"
               disabled={busy}
               onClick={() => calculate()}
-              className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-sm"
+              className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-sm cursor-pointer disabled:cursor-not-allowed"
             >
               <Calculator className="w-4 h-4" />
               Calculate
@@ -658,7 +658,7 @@ export default function PayrollRunPage() {
               type="button"
               disabled={busy}
               onClick={() => finalize()}
-              className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-sm"
+              className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-sm cursor-pointer disabled:cursor-not-allowed"
             >
               <Lock className="w-4 h-4" />
               Finalize
@@ -696,7 +696,7 @@ export default function PayrollRunPage() {
             type="button"
             disabled={busy || !employeeToAdd}
             onClick={() => void addEmployeeToRun()}
-            className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-sm disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-sm cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Plus className="w-4 h-4" />
             Add employee
@@ -731,7 +731,7 @@ export default function PayrollRunPage() {
                   <button
                     type="button"
                     onClick={() => void removeEmployeeFromRun(line.id)}
-                    className="inline-flex items-center gap-1 rounded-md border border-red-300 px-2.5 py-1 text-xs text-red-700 hover:bg-red-50 dark:border-red-500/40 dark:text-red-300 dark:hover:bg-red-950/30"
+                    className="inline-flex items-center gap-1 rounded-md border border-red-300 px-2.5 py-1 text-xs text-red-700 hover:bg-red-50 dark:border-red-500/40 dark:text-red-300 dark:hover:bg-red-950/30 cursor-pointer"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     Remove

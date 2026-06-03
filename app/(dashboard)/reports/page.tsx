@@ -6,9 +6,9 @@ import { FileBarChart, ChevronRight } from "lucide-react";
 const reports = [
   {
     href: "/reports/invoice",
-    title: "Invoice",
+    title: "Invoicing Report",
     description:
-      "Client invoice for a date range: employees by week (reg/OT hours and pay), grouped by department, optional commission.",
+      "Date range report by department: employees by week (reg/OT hours and pay), optional commission.",
   },
 ];
 

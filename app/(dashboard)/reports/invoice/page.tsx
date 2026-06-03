@@ -62,7 +62,7 @@ export default function InvoiceReportPage() {
       );
       setReport(data);
     } catch (err) {
-      setError(axiosErrorMessage(err, "Could not generate invoice report."));
+      setError(axiosErrorMessage(err, "Could not generate invoicing report."));
     } finally {
       setLoading(false);
     }
@@ -81,7 +81,7 @@ export default function InvoiceReportPage() {
           ← Reports
         </Link>
         <h1 className="text-2xl font-semibold text-[var(--text)] mt-4 tracking-tight">
-          Invoice report
+          Invoicing Report
         </h1>
         <p className="text-sm text-[var(--muted)] mt-2">
           Uses finalized payroll runs that overlap your date range. Draft runs are excluded.
@@ -147,7 +147,7 @@ export default function InvoiceReportPage() {
           <button
             type="submit"
             disabled={loading}
-            className="btn-brand px-5 py-2.5 text-sm font-medium rounded-xl"
+            className="btn-brand px-5 py-2.5 text-sm font-medium rounded-xl cursor-pointer disabled:cursor-not-allowed"
           >
             {loading ? "Generating…" : "Generate"}
           </button>
@@ -155,7 +155,7 @@ export default function InvoiceReportPage() {
             <button
               type="button"
               onClick={print}
-              className="rounded-xl border border-[var(--border)] px-5 py-2.5 text-sm font-medium"
+              className="rounded-xl border border-[var(--border)] px-5 py-2.5 text-sm font-medium cursor-pointer"
             >
               Print / Save PDF
             </button>
@@ -178,13 +178,19 @@ export default function InvoiceReportPage() {
           )}
 
           <header className="border-b border-[var(--border)] pb-4">
-            <h2 className="text-2xl font-semibold text-[var(--text)]">Invoice</h2>
-            <p className="text-[var(--muted)] mt-1">{report.company.name}</p>
+            <p className="text-xs uppercase tracking-wide text-[var(--muted)] mb-1">
+              Invoicing Report
+            </p>
+            <h2 className="text-2xl font-semibold text-[var(--text)]">
+              {report.company.name}
+            </h2>
+            <p className="text-[var(--muted)] mt-1">
+              {report.departmentFilter
+                ? report.departmentFilter.name
+                : "All departments"}
+            </p>
             <p className="text-sm mt-1 text-[var(--muted)]">
               Period {report.period.dateFrom} — {report.period.dateTo}
-              {report.departmentFilter
-                ? ` · ${report.departmentFilter.name}`
-                : " · All departments"}
             </p>
           </header>
 
