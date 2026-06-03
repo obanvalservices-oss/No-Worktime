@@ -61,8 +61,8 @@ export function calculateHourlyPay(
 }
 
 export function calculateSalaryPay(weeklyAmount: number) {
-  const prec = inferDecimalPlaces(weeklyAmount);
-  const grossPay = roundHalfUp(weeklyAmount, prec);
+  const payPrec = Math.max(2, inferDecimalPlaces(weeklyAmount));
+  const grossPay = roundHalfUp(weeklyAmount, payPrec);
   return {
     totalHours: 0,
     totalHHMM: "00:00",
@@ -124,10 +124,11 @@ type LineSnap = {
   extraRateSegments: unknown;
 };
 
-/** Max decimal places used on this line (from rates, hours, manual overrides, segments). */
-export function inferPayrollLinePrecision(
+/** Decimal places for hour totals (manual, clocks, segment hours). */
+export function inferPayrollHoursPrecision(
   entries: TimeEntryInput[],
-  line: LineSnap
+  line: LineSnap,
+  segments: ExtraRateSegment[]
 ): number {
   let max = 0;
   const consider = (n: number | null | undefined) => {
@@ -136,16 +137,9 @@ export function inferPayrollLinePrecision(
     }
   };
 
-  consider(line.hourlyRateSnapshot);
-  consider(line.weeklySalaryAmount);
   consider(line.manualRegularHours);
   consider(line.manualOvertimeHours);
-  consider(line.overtimeThreshold);
-  consider(line.overtimeMultiplier);
-
-  const segments = parseExtraRateSegments(line.extraRateSegments);
   for (const seg of segments) {
-    consider(seg.rate);
     consider(seg.hours);
   }
 
@@ -165,19 +159,56 @@ export function inferPayrollLinePrecision(
   return max;
 }
 
+/**
+ * Decimal places for pay amounts. At least 2 (cents) so 33.5×16.5 → 552.75, not 552.8.
+ * Floats like 33.5 in the DB only infer 1 decimal; money still uses cent precision.
+ */
+export function inferPayrollMoneyPrecision(
+  line: LineSnap,
+  segments: ExtraRateSegment[],
+  hoursPrec: number
+): number {
+  let max = 2;
+  const consider = (n: number | null | undefined) => {
+    if (n != null && Number.isFinite(n)) {
+      max = Math.max(max, inferDecimalPlaces(n));
+    }
+  };
+
+  consider(line.hourlyRateSnapshot);
+  consider(line.weeklySalaryAmount);
+  for (const seg of segments) {
+    consider(seg.rate);
+  }
+
+  return Math.max(max, hoursPrec);
+}
+
+/** @deprecated Use inferPayrollHoursPrecision + inferPayrollMoneyPrecision */
+export function inferPayrollLinePrecision(
+  entries: TimeEntryInput[],
+  line: LineSnap
+): number {
+  const segments = parseExtraRateSegments(line.extraRateSegments);
+  const hoursPrec = inferPayrollHoursPrecision(entries, line, segments);
+  return inferPayrollMoneyPrecision(line, segments, hoursPrec);
+}
+
 /** Hourly pay: clock/manual base hours + optional extra rate rows (hours & $). */
 export function computeHourlyLineTotals(
   entries: TimeEntryInput[],
   line: LineSnap
 ) {
-  const prec = inferPayrollLinePrecision(entries, line);
-  const round = (v: number) => roundHalfUp(v, prec);
+  const segments = parseExtraRateSegments(line.extraRateSegments);
+  const hoursPrec = inferPayrollHoursPrecision(entries, line, segments);
+  const payPrec = inferPayrollMoneyPrecision(line, segments, hoursPrec);
+  const roundHours = (v: number) => roundHalfUp(v, hoursPrec);
+  const roundPay = (v: number) => roundHalfUp(v, payPrec);
   const rate = line.hourlyRateSnapshot ?? 0;
   const threshold = line.overtimeThreshold;
   const mult = line.overtimeMultiplier;
   const manualReg = line.manualRegularHours;
   const manualOt = line.manualOvertimeHours;
-  const segments = parseExtraRateSegments(line.extraRateSegments);
 
   /** Core reg/OT hours from clocks or manual override (employee snapshot rate applies here). */
   let mainRegular: number;
@@ -204,8 +235,8 @@ export function computeHourlyLineTotals(
   const hoursFromSegmentsOvertime = sumSegmentHours(segments, "OVERTIME");
 
   /** Display/stored hours: main (clocks or manual) + additional-rate rows in each bucket. */
-  const regularHours = round(mainRegular + hoursFromSegmentsRegular);
-  const overtimeHours = round(mainOvertime + hoursFromSegmentsOvertime);
+  const regularHours = roundHours(mainRegular + hoursFromSegmentsRegular);
+  const overtimeHours = roundHours(mainOvertime + hoursFromSegmentsOvertime);
 
   // Pay: base employee rate on main hours, then add straight $ from extra rows (sum raw, round once).
   let extraRegularPayRaw = 0;
@@ -222,9 +253,9 @@ export function computeHourlyLineTotals(
   const baseRegularPayRaw = mainRegular * rate;
   const baseOvertimePayRaw = mainOvertime * rate * mult;
 
-  const regularPay = round(baseRegularPayRaw + extraRegularPayRaw);
-  const overtimePay = round(baseOvertimePayRaw + extraOvertimePayRaw);
-  const grossPay = round(regularPay + overtimePay);
+  const regularPay = roundPay(baseRegularPayRaw + extraRegularPayRaw);
+  const overtimePay = roundPay(baseOvertimePayRaw + extraOvertimePayRaw);
+  const grossPay = roundPay(regularPay + overtimePay);
 
   return {
     regularHours,
