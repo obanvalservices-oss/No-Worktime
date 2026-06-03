@@ -13,7 +13,8 @@ Production domain: **https://no-worktime.nestorobando.com**
 
 1. **New project → Deploy from GitHub** (this repo).
 2. Add **variables** (see `.env.example`):
-   - `DATABASE_URL`
+   - `DATABASE_URL` (required)
+   - `DIRECT_URL` (optional on Railway — if omitted, startup uses `DATABASE_URL` for migrations)
    - `JWT_SECRET` (long random string)
    - `NEXT_PUBLIC_APP_URL` = `https://no-worktime.nestorobando.com`
    - `MASTER_USER_EMAIL` / `MASTER_USER_PASSWORD` (strong password in production)
@@ -46,7 +47,8 @@ SQLite is no longer used; the baseline migration is PostgreSQL-only.
 
 | Variable | Required | Notes |
 |----------|----------|--------|
-| `DATABASE_URL` | Yes | Postgres (Supabase direct 5432 recommended) |
+| `DATABASE_URL` | Yes | Postgres; pooler `6543` + `pgbouncer=true` for runtime, or direct `5432` if you use one URL |
+| `DIRECT_URL` | Recommended | Supabase direct `5432` for migrations; if unset, Railway startup copies `DATABASE_URL` |
 | `JWT_SECRET` | Yes | |
 | `NEXT_PUBLIC_APP_URL` | Yes in prod | No trailing slash |
 | `MASTER_USER_EMAIL` / `MASTER_USER_PASSWORD` | Recommended | Bootstrap admin |
