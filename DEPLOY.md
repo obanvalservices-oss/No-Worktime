@@ -13,8 +13,8 @@ Production domain: **https://no-worktime.nestorobando.com**
 
 1. **New project → Deploy from GitHub** (this repo).
 2. Add **variables** (see `.env.example`):
-   - `DATABASE_URL` (required)
-   - `DIRECT_URL` (optional on Railway — if omitted, startup uses `DATABASE_URL` for migrations)
+   - `DATABASE_URL` — Supabase **pooler** `:6543` with `pgbouncer=true` (runtime)
+   - `DIRECT_URL` — Supabase **direct** `db.<ref>.supabase.co:5432` (migrations at startup). **Required** if `DATABASE_URL` is the pooler; without it, migrate is skipped and the app still starts.
    - `JWT_SECRET` (long random string)
    - `NEXT_PUBLIC_APP_URL` = `https://no-worktime.nestorobando.com`
    - `MASTER_USER_EMAIL` / `MASTER_USER_PASSWORD` (strong password in production)
