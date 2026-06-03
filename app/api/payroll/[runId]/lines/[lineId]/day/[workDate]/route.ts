@@ -6,6 +6,7 @@ import { normalizeClockString } from "@/lib/time";
 import { recalculatePayrollLine } from "@/lib/payrollLineRecalc";
 import type { UserRole } from "@/lib/auth/roles";
 import { canAccessCompany } from "@/lib/auth/company-access";
+import { assertPayrollRunEditable } from "@/lib/auth/payroll-permissions";
 
 async function assertRun(userId: string, role: UserRole, runId: string) {
   const run = await prisma.payrollRun.findUnique({
@@ -33,11 +34,11 @@ export async function PATCH(
   const { runId, lineId, workDate } = await params;
 
   const run = await assertRun(userId, role, runId);
-  if (!run || run.status === "FINALIZED") {
-    return NextResponse.json(
-      { message: run ? "Cannot edit finalized payroll" : "Not found" },
-      { status: run ? 400 : 404 }
-    );
+  if (!run) {
+    return NextResponse.json({ message: "Not found" }, { status: 404 });
+  }
+  if (!(await assertPayrollRunEditable(userId, role, run))) {
+    return NextResponse.json({ message: "Cannot edit finalized payroll" }, { status: 403 });
   }
   const line = await prisma.payrollLine.findFirst({
     where: { id: lineId, runId: run.id },

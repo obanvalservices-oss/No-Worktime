@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import api from "@/lib/api";
+import { useCompany } from "@/context/CompanyContext";
 import {
   decimalHoursToHHMM,
   normalizeClockString,
@@ -268,11 +269,13 @@ function HourlyManualTools({
 export default function PayrollRunPage() {
   const params = useParams();
   const runId = params.id as string;
+  const { company } = useCompany();
   const [run, setRun] = useState<Run | null>(null);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [employeeToAdd, setEmployeeToAdd] = useState("");
+  const [canEditFinalized, setCanEditFinalized] = useState(false);
 
   const load = useCallback(async () => {
     if (!runId) return;
@@ -285,7 +288,24 @@ export default function PayrollRunPage() {
   }, [load]);
 
   useEffect(() => {
-    if (!run?.company?.id || run.status !== "DRAFT") {
+    const companyId = run?.company?.id ?? company?.id;
+    if (!companyId) {
+      setCanEditFinalized(false);
+      return;
+    }
+    void api
+      .get<{ canEditFinalizedPayroll: boolean }>(
+        `/api/auth/permissions?companyId=${companyId}`
+      )
+      .then((r) => setCanEditFinalized(r.data.canEditFinalizedPayroll))
+      .catch(() => setCanEditFinalized(false));
+  }, [run?.company?.id, company?.id]);
+
+  useEffect(() => {
+    const editable =
+      run?.status === "DRAFT" ||
+      (run?.status === "FINALIZED" && canEditFinalized);
+    if (!run?.company?.id || !editable) {
       setEmployees([]);
       setEmployeeToAdd("");
       return;
@@ -306,14 +326,18 @@ export default function PayrollRunPage() {
     return () => {
       cancelled = true;
     };
-  }, [run?.company?.id, run?.status]);
+  }, [run?.company?.id, run?.status, canEditFinalized]);
+
+  const editable =
+    run?.status === "DRAFT" ||
+    (run?.status === "FINALIZED" && canEditFinalized);
 
   const patchDay = async (
     lineId: string,
     workDate: string,
     body: Partial<TimeEntry>
   ) => {
-    if (!runId || run?.status !== "DRAFT") return;
+    if (!runId || !editable) return;
     try {
       await api.patch(
         `/api/payroll/${runId}/lines/${lineId}/day/${workDate}`,
@@ -328,7 +352,7 @@ export default function PayrollRunPage() {
   };
 
   const patchSalary = async (lineId: string, weeklySalaryAmount: number) => {
-    if (!runId || run?.status !== "DRAFT") return;
+    if (!runId || !editable) return;
     await api.patch(`/api/payroll/${runId}/lines/${lineId}`, {
       weeklySalaryAmount,
     });
@@ -336,7 +360,7 @@ export default function PayrollRunPage() {
   };
 
   const patchLine = async (lineId: string, body: Record<string, unknown>) => {
-    if (!runId || run?.status !== "DRAFT") return;
+    if (!runId || !editable) return;
     await api.patch(`/api/payroll/${runId}/lines/${lineId}`, body);
     await load();
   };
@@ -357,7 +381,13 @@ export default function PayrollRunPage() {
   };
 
   const finalize = async () => {
-    if (!runId || !confirm("Finalize? You will not be able to edit times.")) return;
+    if (
+      !runId ||
+      !confirm(
+        "Finalize this payroll? Users without special permission will not be able to edit it afterward."
+      )
+    )
+      return;
     setBusy(true);
     try {
       const { data } = await api.post<Run>(`/api/payroll/${runId}/finalize`);
@@ -368,7 +398,7 @@ export default function PayrollRunPage() {
   };
 
   const addEmployeeToRun = async () => {
-    if (!runId || !employeeToAdd || run?.status !== "DRAFT") return;
+    if (!runId || !employeeToAdd || !editable) return;
     setBusy(true);
     setMsg("");
     try {
@@ -386,7 +416,7 @@ export default function PayrollRunPage() {
   };
 
   const removeEmployeeFromRun = async (lineId: string) => {
-    if (!runId || run?.status !== "DRAFT") return;
+    if (!runId || !editable) return;
     if (!confirm("Remove this employee from the payroll run?")) return;
     setBusy(true);
     setMsg("");
@@ -406,6 +436,7 @@ export default function PayrollRunPage() {
   }
 
   const draft = run.status === "DRAFT";
+  const editingFinalized = run.status === "FINALIZED" && canEditFinalized;
   const runEmployeeIds = new Set(run.lines.map((l) => l.employee.id));
   const addableEmployees = employees.filter((e) => !runEmployeeIds.has(e.id));
 
@@ -426,32 +457,37 @@ export default function PayrollRunPage() {
             <Printer className="w-4 h-4" />
             Print report
           </Link>
+          {editable && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => calculate()}
+              className="inline-flex items-center gap-2 btn-brand px-4 py-2 text-sm font-medium"
+            >
+              <Calculator className="w-4 h-4" />
+              Calculate
+            </button>
+          )}
           {draft && (
-            <>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => calculate()}
-                className="inline-flex items-center gap-2 btn-brand px-4 py-2 text-sm font-medium"
-              >
-                <Calculator className="w-4 h-4" />
-                Calculate
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => finalize()}
-                className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-sm"
-              >
-                <Lock className="w-4 h-4" />
-                Finalize
-              </button>
-            </>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => finalize()}
+              className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-sm"
+            >
+              <Lock className="w-4 h-4" />
+              Finalize
+            </button>
           )}
         </div>
       </div>
       {msg && <p className="no-print text-sm text-brand-msg mb-4">{msg}</p>}
-      {draft && (
+      {editingFinalized && (
+        <p className="no-print text-sm rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-100 px-3 py-2 mb-4">
+          Editing finalized payroll (authorized). Changes are saved to this run.
+        </p>
+      )}
+      {editable && (
         <div className="no-print mb-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 flex flex-wrap items-center gap-2">
           <span className="text-sm text-[var(--muted)]">Include employee in this run</span>
           <select
@@ -501,7 +537,7 @@ export default function PayrollRunPage() {
                     {line.overtimeThreshold}h @ {line.overtimeMultiplier}×
                   </div>
                 )}
-                {draft && (
+                {editable && (
                   <button
                     type="button"
                     onClick={() => void removeEmployeeFromRun(line.id)}
@@ -536,7 +572,7 @@ export default function PayrollRunPage() {
                             <td key={k} className="px-1 py-1">
                               <input
                                 key={`${te.id}-${k}-${te[k] ?? ""}`}
-                                disabled={!draft}
+                                disabled={!editable}
                                 defaultValue={te[k] ?? ""}
                                 placeholder="HH:mm"
                                 className="w-[72px] rounded border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs font-mono disabled:opacity-60"
@@ -581,7 +617,7 @@ export default function PayrollRunPage() {
                     </tr>
                   </tfoot>
                 </table>
-                {draft && (
+                {editable && (
                   <HourlyManualTools
                     line={line}
                     onPatch={(body) => void patchLine(line.id, body)}
@@ -600,7 +636,7 @@ export default function PayrollRunPage() {
                   type="number"
                   step="0.01"
                   min="0"
-                  disabled={!draft}
+                  disabled={!editable}
                   defaultValue={line.weeklySalaryAmount ?? ""}
                   className="w-36 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm disabled:opacity-60"
                   onBlur={(e) => {

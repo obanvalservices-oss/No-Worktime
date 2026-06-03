@@ -48,12 +48,14 @@ model Company {
 }
 
 model CompanyMembership {
-  id         String   @id @default(uuid())
-  userId     String
-  companyId  String
-  createdAt  DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id                      String   @id @default(uuid())
+  userId                  String
+  companyId               String
+  /// Per-company: allow editing finalized payroll runs (ADMIN bypasses).
+  canEditFinalizedPayroll Boolean  @default(false)
+  createdAt               DateTime @default(now())
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company                 Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([userId, companyId])
   @@index([userId])
@@ -88,6 +90,8 @@ model Employee {
   overtimeThreshold  Float       @default(40)
   overtimeMultiplier Float       @default(1.5)
   isActive           Boolean     @default(true)
+  /// YYYY-MM-DD when marked inactive; cleared on reactivation. Does not alter past payroll lines.
+  inactiveAt         String?
   createdAt          DateTime    @default(now())
   /// Portal user (EMPLOYEE role) linked to this roster row — required to access assigned documents.
   userId             String?     @unique

@@ -21,6 +21,7 @@ interface EmployeeDetail {
   overtimeThreshold: number;
   overtimeMultiplier: number;
   isActive: boolean;
+  inactiveAt: string | null;
   department: Department;
   company: { id: string; name: string };
   user: { id: string; email: string } | null;
@@ -44,6 +45,9 @@ export default function EditEmployeePage() {
   const [overtimeThreshold, setOvertimeThreshold] = useState("40");
   const [overtimeMultiplier, setOvertimeMultiplier] = useState("1.5");
   const [isActive, setIsActive] = useState(true);
+  const [inactiveAt, setInactiveAt] = useState(() =>
+    new Date().toISOString().slice(0, 10)
+  );
   const [portalEmail, setPortalEmail] = useState("");
   const [portalUser, setPortalUser] = useState<{ id: string; email: string } | null>(
     null
@@ -58,6 +62,7 @@ export default function EditEmployeePage() {
     setOvertimeThreshold(String(data.overtimeThreshold));
     setOvertimeMultiplier(String(data.overtimeMultiplier));
     setIsActive(data.isActive);
+    setInactiveAt(data.inactiveAt ?? new Date().toISOString().slice(0, 10));
     setPortalUser(data.user);
   };
 
@@ -106,6 +111,7 @@ export default function EditEmployeePage() {
         departmentId,
         payType,
         isActive,
+        inactiveAt: isActive ? null : inactiveAt,
         overtimeThreshold: Number(overtimeThreshold),
         overtimeMultiplier: Number(overtimeMultiplier),
       };
@@ -294,6 +300,22 @@ export default function EditEmployeePage() {
           />
           <span className="text-[var(--text)]">Active on payroll roster</span>
         </label>
+        {!isActive ? (
+          <label className="text-sm flex flex-col gap-1.5">
+            <span className="text-[var(--muted)]">Inactive as of</span>
+            <input
+              type="date"
+              required
+              value={inactiveAt}
+              onChange={(e) => setInactiveAt(e.target.value)}
+              className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 max-w-xs"
+            />
+            <span className="text-xs text-[var(--muted)] leading-relaxed">
+              Past payroll runs and reports before this date are unchanged. New payroll
+              runs will not include this employee until reactivated.
+            </span>
+          </label>
+        ) : null}
 
         {error ? (
           <p className="text-sm text-red-600 dark:text-red-400" role="alert">

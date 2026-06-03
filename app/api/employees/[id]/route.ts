@@ -13,6 +13,11 @@ const employeeSchema = z.object({
   overtimeThreshold: z.number().positive().optional(),
   overtimeMultiplier: z.number().positive().optional(),
   isActive: z.boolean().optional(),
+  inactiveAt: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable()
+    .optional(),
 });
 
 export async function GET(
@@ -90,6 +95,19 @@ export async function PATCH(
       );
     }
   }
+  const today = new Date().toISOString().slice(0, 10);
+  let inactiveAtUpdate: string | null | undefined;
+  if (parsed.data.isActive === true) {
+    inactiveAtUpdate = null;
+  } else if (parsed.data.isActive === false) {
+    inactiveAtUpdate =
+      parsed.data.inactiveAt !== undefined
+        ? parsed.data.inactiveAt
+        : existing.inactiveAt ?? today;
+  } else if (parsed.data.inactiveAt !== undefined) {
+    inactiveAtUpdate = parsed.data.inactiveAt;
+  }
+
   const e = await prisma.employee.update({
     where: { id },
     data: {
@@ -112,6 +130,7 @@ export async function PATCH(
         ? { overtimeMultiplier: parsed.data.overtimeMultiplier }
         : {}),
       ...(parsed.data.isActive != null ? { isActive: parsed.data.isActive } : {}),
+      ...(inactiveAtUpdate !== undefined ? { inactiveAt: inactiveAtUpdate } : {}),
     },
     include: { department: true },
   });

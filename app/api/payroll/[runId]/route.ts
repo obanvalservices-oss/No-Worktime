@@ -5,6 +5,7 @@ import { requireManagementAccess } from "@/lib/auth/api-session";
 import { payrollRunLinesArgs } from "@/lib/payrollLineInclude";
 import type { UserRole } from "@/lib/auth/roles";
 import { canAccessCompany } from "@/lib/auth/company-access";
+import { assertPayrollRunEditable } from "@/lib/auth/payroll-permissions";
 
 async function assertRun(userId: string, role: UserRole, runId: string) {
   const run = await prisma.payrollRun.findUnique({
@@ -55,8 +56,8 @@ export async function PATCH(
   if (!run) {
     return NextResponse.json({ message: "Not found" }, { status: 404 });
   }
-  if (run.status === "FINALIZED") {
-    return NextResponse.json({ message: "Cannot edit a finalized payroll" }, { status: 400 });
+  if (!(await assertPayrollRunEditable(userId, role, run))) {
+    return NextResponse.json({ message: "Cannot edit finalized payroll" }, { status: 403 });
   }
   const body = await request.json();
   const parsed = patchRunSchema.safeParse(body);
@@ -87,8 +88,8 @@ export async function DELETE(
   if (!run) {
     return NextResponse.json({ message: "Not found" }, { status: 404 });
   }
-  if (run.status === "FINALIZED") {
-    return NextResponse.json({ message: "Cannot delete finalized payroll" }, { status: 400 });
+  if (!(await assertPayrollRunEditable(userId, role, run))) {
+    return NextResponse.json({ message: "Cannot delete finalized payroll" }, { status: 403 });
   }
   await prisma.payrollRun.delete({ where: { id: run.id } });
   return new NextResponse(null, { status: 204 });

@@ -26,6 +26,7 @@ interface UserProfile {
   createdAt: string;
   companyMemberships: Array<{
     id: string;
+    canEditFinalizedPayroll: boolean;
     company: { id: string; name: string; description: string | null };
   }>;
 }
@@ -108,6 +109,21 @@ export default function AdminUsersPage() {
     }
   };
 
+  const toggleEditFinalized = async (membershipId: string, enabled: boolean) => {
+    setSaving(true);
+    setError(null);
+    try {
+      await api.patch(`/api/admin/users/${selectedUserId}/memberships/${membershipId}`, {
+        canEditFinalizedPayroll: enabled,
+      });
+      await loadProfile(selectedUserId);
+    } catch (err) {
+      setError(axiosErrorMessage(err, "Failed to update permission."));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const removeCompany = async (companyId: string) => {
     if (!selectedUserId) return;
     setSaving(true);
@@ -177,6 +193,12 @@ export default function AdminUsersPage() {
                 <div className="text-xs text-[var(--muted)] mt-1">
                   {profile.role} • {profile.emailVerified ? "Email verified" : "Email unverified"}
                 </div>
+                {profile.role === "ADMIN" ? (
+                  <p className="text-xs text-[var(--accent-deep)] dark:text-[var(--accent-light)] mt-2">
+                    Super admin — can always edit finalized payroll (permission below does not
+                    apply).
+                  </p>
+                ) : null}
               </div>
 
               <div className="space-y-2">
@@ -188,17 +210,34 @@ export default function AdminUsersPage() {
                     {profile.companyMemberships.map((m) => (
                       <li
                         key={m.id}
-                        className="flex items-center justify-between gap-2 rounded-lg border border-[var(--border)] px-3 py-2"
+                        className="rounded-lg border border-[var(--border)] px-3 py-2 space-y-2"
                       >
-                        <span className="text-sm text-[var(--text)]">{m.company.name}</span>
-                        <button
-                          type="button"
-                          disabled={saving}
-                          onClick={() => void removeCompany(m.company.id)}
-                          className="text-xs rounded-md border border-red-300 text-red-700 px-2 py-1 hover:bg-red-50 dark:border-red-500/40 dark:text-red-300 dark:hover:bg-red-950/30"
-                        >
-                          Remove
-                        </button>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium text-[var(--text)]">
+                            {m.company.name}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() => void removeCompany(m.company.id)}
+                            className="text-xs rounded-md border border-red-300 text-red-700 px-2 py-1 hover:bg-red-50 dark:border-red-500/40 dark:text-red-300 dark:hover:bg-red-950/30"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        {profile.role !== "ADMIN" ? (
+                          <label className="flex items-center gap-2 text-xs text-[var(--muted)]">
+                            <input
+                              type="checkbox"
+                              checked={m.canEditFinalizedPayroll}
+                              disabled={saving}
+                              onChange={(e) =>
+                                void toggleEditFinalized(m.id, e.target.checked)
+                              }
+                            />
+                            Edit finalized payroll
+                          </label>
+                        ) : null}
                       </li>
                     ))}
                   </ul>

@@ -22,6 +22,7 @@ export async function GET(
         orderBy: { company: { name: "asc" } },
         select: {
           id: true,
+          canEditFinalizedPayroll: true,
           createdAt: true,
           company: {
             select: {

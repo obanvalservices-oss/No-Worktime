@@ -5,6 +5,7 @@ import { recalculatePayrollLine } from "@/lib/payrollLineRecalc";
 import { payrollRunLinesArgs } from "@/lib/payrollLineInclude";
 import type { UserRole } from "@/lib/auth/roles";
 import { canAccessCompany } from "@/lib/auth/company-access";
+import { assertPayrollRunEditable } from "@/lib/auth/payroll-permissions";
 
 async function assertRun(userId: string, role: UserRole, runId: string) {
   const run = await prisma.payrollRun.findUnique({
@@ -28,8 +29,8 @@ export async function POST(
   if (!run) {
     return NextResponse.json({ message: "Not found" }, { status: 404 });
   }
-  if (run.status === "FINALIZED") {
-    return NextResponse.json({ message: "Payroll is finalized" }, { status: 400 });
+  if (!(await assertPayrollRunEditable(userId, role, run))) {
+    return NextResponse.json({ message: "Payroll is finalized" }, { status: 403 });
   }
 
   const full = await prisma.payrollRun.findUnique({

@@ -19,6 +19,8 @@ interface Employee {
   payType: "HOURLY" | "SALARY";
   hourlyRate: number | null;
   weeklyBaseSalary: number | null;
+  isActive: boolean;
+  inactiveAt: string | null;
   department: Department;
   user: { id: string; email: string } | null;
 }
@@ -84,7 +86,14 @@ function EmployeeRow({
       className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3"
     >
       <div className="min-w-0 flex-1">
-        <div className="font-medium">{emp.name}</div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium">{emp.name}</span>
+          {!emp.isActive ? (
+            <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-zinc-500/15 text-zinc-600 dark:text-zinc-300">
+              Inactive{emp.inactiveAt ? ` since ${emp.inactiveAt}` : ""}
+            </span>
+          ) : null}
+        </div>
         <div className="text-xs text-[var(--muted)]">
           {emp.department.name} · {emp.payType}
           {emp.payType === "HOURLY"
@@ -157,6 +166,7 @@ export default function EmployeesPage() {
   const [payType, setPayType] = useState<"HOURLY" | "SALARY">("HOURLY");
   const [hourlyRate, setHourlyRate] = useState("");
   const [weeklySalary, setWeeklySalary] = useState("");
+  const [showInactive, setShowInactive] = useState(true);
 
   const loadDepts = async () => {
     if (!company) return;
@@ -283,8 +293,20 @@ export default function EmployeesPage() {
         </button>
       </form>
 
+      <label className="flex items-center gap-2 text-sm text-[var(--muted)] mb-3">
+        <input
+          type="checkbox"
+          checked={showInactive}
+          onChange={(e) => setShowInactive(e.target.checked)}
+          className="rounded border-[var(--border)]"
+        />
+        Show inactive employees
+      </label>
+
       <ul className="space-y-2">
-        {rows.map((emp, i) => (
+        {rows
+          .filter((emp) => showInactive || emp.isActive)
+          .map((emp, i) => (
           <EmployeeRow
             key={emp.id}
             emp={emp}
