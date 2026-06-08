@@ -17,6 +17,7 @@ import {
   roundHalfUp,
 } from "@/lib/decimalPrecision";
 import {
+  computeLineTotals,
   parseExtraRateSegments,
   type ExtraRateSegment,
 } from "@/lib/payrollCalculator";
@@ -128,6 +129,14 @@ function applyLinePatch(
   };
 }
 
+/** Recompute stored hour/pay totals on a line after manual override or segment edits. */
+function recomputeHourlyLineTotals(run: Run, lineId: string): Run {
+  const line = run.lines.find((l) => l.id === lineId);
+  if (!line || line.employee.payType !== "HOURLY") return run;
+  const totals = computeLineTotals("HOURLY", line.timeEntries, line);
+  return applyLinePatch(run, lineId, totals);
+}
+
 function queueDayPatch(
   pending: PendingDayPatch[],
   lineId: string,
@@ -179,6 +188,13 @@ function HourlyManualTools({
   const manualActive =
     line.manualRegularHours != null && line.manualOvertimeHours != null;
 
+  const [regInput, setRegInput] = useState(() =>
+    line.manualRegularHours != null ? String(line.manualRegularHours) : ""
+  );
+  const [otInput, setOtInput] = useState(() =>
+    line.manualOvertimeHours != null ? String(line.manualOvertimeHours) : ""
+  );
+
   const [segments, setSegments] = useState<ExtraRateSegment[]>(() =>
     parseExtraRateSegments(line.extraRateSegments)
   );
@@ -188,25 +204,31 @@ function HourlyManualTools({
     setSegments(parseExtraRateSegments(line.extraRateSegments));
   }, [line.id, segmentsKey]);
 
-  const commitSegments = (next: ExtraRateSegment[]) => {
-    setSegments(next);
-    void onPatch({ extraRateSegments: next });
-  };
+  useEffect(() => {
+    setRegInput(
+      line.manualRegularHours != null ? String(line.manualRegularHours) : ""
+    );
+    setOtInput(
+      line.manualOvertimeHours != null ? String(line.manualOvertimeHours) : ""
+    );
+  }, [line.id, line.manualRegularHours, line.manualOvertimeHours]);
 
-  const saveManualFromInputs = (
-    regEl: HTMLInputElement | null,
-    otEl: HTMLInputElement | null
-  ) => {
-    const rs = regEl?.value?.trim() ?? "";
-    const os = otEl?.value?.trim() ?? "";
+  const commitManual = (regRaw: string, otRaw: string) => {
+    const rs = regRaw.trim();
+    const os = otRaw.trim();
     if (rs === "" && os === "") {
-      void onPatch({ manualRegularHours: null, manualOvertimeHours: null });
+      onPatch({ manualRegularHours: null, manualOvertimeHours: null });
       return;
     }
     const r = parseDecimalInput(rs);
     const o = parseDecimalInput(os);
     if (r == null || o == null) return;
-    void onPatch({ manualRegularHours: r, manualOvertimeHours: o });
+    onPatch({ manualRegularHours: r, manualOvertimeHours: o });
+  };
+
+  const commitSegments = (next: ExtraRateSegment[]) => {
+    setSegments(next);
+    onPatch({ extraRateSegments: next });
   };
 
   const baseRate = line.hourlyRateSnapshot ?? 0;
@@ -226,34 +248,30 @@ function HourlyManualTools({
           <label className="text-xs text-[var(--muted)] flex flex-col gap-1">
             Regular h
             <input
-              key={`mr-${line.id}-${String(line.manualRegularHours)}-${String(line.manualOvertimeHours)}`}
               type="number"
               step="any"
               min="0"
-              defaultValue={line.manualRegularHours ?? ""}
+              value={regInput}
               className="w-28 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 text-sm font-mono"
-              data-manual-reg
-              onBlur={(e) => {
-                const form = e.currentTarget.closest("[data-manual-wrap]");
-                const ot = form?.querySelector<HTMLInputElement>("[data-manual-ot]");
-                saveManualFromInputs(e.currentTarget, ot ?? null);
+              onChange={(e) => {
+                const next = e.target.value;
+                setRegInput(next);
+                commitManual(next, otInput);
               }}
             />
           </label>
           <label className="text-xs text-[var(--muted)] flex flex-col gap-1">
             OT h
             <input
-              key={`mo-${line.id}-${String(line.manualRegularHours)}-${String(line.manualOvertimeHours)}`}
               type="number"
               step="any"
               min="0"
-              defaultValue={line.manualOvertimeHours ?? ""}
+              value={otInput}
               className="w-28 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 text-sm font-mono"
-              data-manual-ot
-              onBlur={(e) => {
-                const form = e.currentTarget.closest("[data-manual-wrap]");
-                const reg = form?.querySelector<HTMLInputElement>("[data-manual-reg]");
-                saveManualFromInputs(reg ?? null, e.currentTarget);
+              onChange={(e) => {
+                const next = e.target.value;
+                setOtInput(next);
+                commitManual(regInput, next);
               }}
             />
           </label>
@@ -265,9 +283,11 @@ function HourlyManualTools({
           <button
             type="button"
             className="text-xs link-brand px-2 py-1 rounded"
-            onClick={() =>
-              void onPatch({ manualRegularHours: null, manualOvertimeHours: null })
-            }
+            onClick={() => {
+              setRegInput("");
+              setOtInput("");
+              onPatch({ manualRegularHours: null, manualOvertimeHours: null });
+            }}
           >
             Use clock totals
           </button>
@@ -473,7 +493,11 @@ export default function PayrollRunPage() {
 
   const queueLineChange = (lineId: string, body: Record<string, unknown>) => {
     if (!editRun) return;
-    setEditRun((prev) => (prev ? applyLinePatch(prev, lineId, body) : prev));
+    setEditRun((prev) => {
+      if (!prev) return prev;
+      const patched = applyLinePatch(prev, lineId, body);
+      return recomputeHourlyLineTotals(patched, lineId);
+    });
     setPendingLines((p) => queueLinePatch(p, lineId, body));
     setDirty(true);
     setMsg("");
@@ -511,7 +535,7 @@ export default function PayrollRunPage() {
   const calculate = async () => {
     if (!runId) return;
     if (dirty) {
-      setMsg("Save changes first, then run Calculate.");
+      await saveChanges();
       return;
     }
     setBusy(true);
