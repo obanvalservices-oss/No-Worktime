@@ -62,6 +62,7 @@ interface Line {
   regularPay: number | null;
   overtimePay: number | null;
   grossPay: number | null;
+  memo: string | null;
   employee: {
     id: string;
     name: string;
@@ -446,6 +447,7 @@ function CompactLineRow({
   const [salaryInput, setSalaryInput] = useState(() =>
     line.weeklySalaryAmount != null ? String(line.weeklySalaryAmount) : ""
   );
+  const [memoInput, setMemoInput] = useState(() => line.memo ?? "");
 
   useEffect(() => {
     setRegInput(
@@ -461,6 +463,10 @@ function CompactLineRow({
       line.weeklySalaryAmount != null ? String(line.weeklySalaryAmount) : ""
     );
   }, [line.id, line.weeklySalaryAmount]);
+
+  useEffect(() => {
+    setMemoInput(line.memo ?? "");
+  }, [line.id, line.memo]);
 
   const commitCompact = (reg: string, ot: string) => {
     const r = parseDecimalInput(reg);
@@ -565,6 +571,31 @@ function CompactLineRow({
             </>
           )}
         </div>
+      </div>
+
+      {/* Memo row */}
+      <div className="px-3 pb-2 flex items-center gap-2">
+        <span className="text-[10px] uppercase tracking-wide text-[var(--muted)] shrink-0">
+          Memo
+        </span>
+        {formEnabled ? (
+          <input
+            type="text"
+            value={memoInput}
+            maxLength={500}
+            placeholder="Check note (split, deduct…)"
+            onChange={(e) => {
+              const next = e.target.value;
+              setMemoInput(next);
+              onPatch({ memo: next.trim() ? next.trim() : null });
+            }}
+            className="flex-1 min-w-0 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs disabled:opacity-60"
+          />
+        ) : (
+          <span className="text-xs text-[var(--muted)] truncate">
+            {line.memo?.trim() ? line.memo : "—"}
+          </span>
+        )}
       </div>
 
       {/* ── Expanded detail ── */}

@@ -518,4 +518,74 @@ body {
     word-break: break-word;
     overflow-wrap: anywhere;
   }
+
+  /* Summary: denser for single-page fit */
+  .report-summary .report-layout-summary {
+    font-size: 10px;
+  }
+
+  .report-summary .payroll-report-table {
+    font-size: 9px;
+  }
+
+  .report-summary .payroll-report-table th,
+  .report-summary .payroll-report-table td {
+    padding: 2px 4px !important;
+  }
+
+  /* Paystubs: 5 cut stubs per US Letter page */
+  .report-paystubs .paystub-page {
+    display: flex;
+    flex-direction: column;
+    height: 10in;
+    box-sizing: border-box;
+  }
+
+  .report-paystubs .paystub-page-break {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .report-paystubs .paystub-slot {
+    flex: 1 1 20%;
+    height: 20%;
+    max-height: 2in;
+    box-sizing: border-box;
+    border-bottom: 1px dashed #999;
+    padding: 0.15in 0.2in;
+    overflow: hidden;
+  }
+
+  .report-paystubs .paystub-slot:last-child {
+    border-bottom: none;
+  }
+
+  .report-paystubs .paystub-empty {
+    border-bottom-style: dotted;
+    opacity: 0.35;
+  }
+}
+
+/* Screen preview for paystubs */
+.report-layout-paystubs .paystub-page {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.report-layout-paystubs .paystub-slot {
+  border-bottom: 1px dashed var(--border);
+  padding: 0.75rem 1rem;
+  min-height: 5.5rem;
+}
+
+.report-layout-paystubs .paystub-slot:last-child {
+  border-bottom: none;
+}
+
+.report-layout-paystubs .paystub-empty {
+  min-height: 5.5rem;
+  opacity: 0.4;
 }

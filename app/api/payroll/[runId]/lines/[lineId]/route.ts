@@ -25,6 +25,7 @@ const patchLineSchema = z.object({
   overtimeMultiplier: z.number().positive().optional(),
   manualRegularHours: z.number().nonnegative().optional().nullable(),
   manualOvertimeHours: z.number().nonnegative().optional().nullable(),
+  memo: z.string().max(500).nullable().optional(),
   extraRateSegments: z
     .array(
       z.object({
@@ -105,6 +106,9 @@ export async function PATCH(
   }
   if (d.extraRateSegments !== undefined) {
     data.extraRateSegments = d.extraRateSegments;
+  }
+  if (d.memo !== undefined) {
+    data.memo = d.memo?.trim() ? d.memo.trim() : null;
   }
 
   if (Object.keys(data).length === 0) {

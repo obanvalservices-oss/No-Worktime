@@ -18,6 +18,7 @@ const employeeSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .nullable()
     .optional(),
+  specialNote: z.string().max(500).nullable().optional(),
 });
 
 export async function GET(
@@ -131,6 +132,13 @@ export async function PATCH(
         : {}),
       ...(parsed.data.isActive != null ? { isActive: parsed.data.isActive } : {}),
       ...(inactiveAtUpdate !== undefined ? { inactiveAt: inactiveAtUpdate } : {}),
+      ...(parsed.data.specialNote !== undefined
+        ? {
+            specialNote: parsed.data.specialNote?.trim()
+              ? parsed.data.specialNote.trim()
+              : null,
+          }
+        : {}),
     },
     include: { department: true },
   });

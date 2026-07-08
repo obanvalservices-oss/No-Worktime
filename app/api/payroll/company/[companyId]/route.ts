@@ -117,6 +117,7 @@ export async function POST(
           weeklySalaryAmount: emp.payType === "SALARY" ? emp.weeklyBaseSalary : null,
           overtimeThreshold: emp.overtimeThreshold,
           overtimeMultiplier: emp.overtimeMultiplier,
+          memo: emp.specialNote?.trim() ? emp.specialNote.trim() : null,
         },
       });
 

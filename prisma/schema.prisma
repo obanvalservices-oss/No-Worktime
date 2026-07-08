@@ -93,6 +93,8 @@ model Employee {
   isActive           Boolean     @default(true)
   /// YYYY-MM-DD when marked inactive; cleared on reactivation. Does not alter past payroll lines.
   inactiveAt         String?
+  /// Free-text check instructions (split check, deduction, etc.). Copied to PayrollLine.memo on run create.
+  specialNote        String?
   createdAt          DateTime    @default(now())
   /// Portal user (EMPLOYEE role) linked to this roster row — required to access assigned documents.
   userId             String?     @unique
@@ -224,6 +226,8 @@ model PayrollLine {
   regularPay         Float?
   overtimePay        Float?
   grossPay           Float?
+  /// Per-run check memo (copied from Employee.specialNote; editable on this line only).
+  memo               String?
   run                PayrollRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
   employee           Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   timeEntries        TimeEntry[]

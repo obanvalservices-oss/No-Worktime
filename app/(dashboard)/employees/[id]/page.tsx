@@ -22,6 +22,7 @@ interface EmployeeDetail {
   overtimeMultiplier: number;
   isActive: boolean;
   inactiveAt: string | null;
+  specialNote: string | null;
   department: Department;
   company: { id: string; name: string };
   user: { id: string; email: string } | null;
@@ -48,6 +49,7 @@ export default function EditEmployeePage() {
   const [inactiveAt, setInactiveAt] = useState(() =>
     new Date().toISOString().slice(0, 10)
   );
+  const [specialNote, setSpecialNote] = useState("");
   const [portalEmail, setPortalEmail] = useState("");
   const [portalUser, setPortalUser] = useState<{ id: string; email: string } | null>(
     null
@@ -63,6 +65,7 @@ export default function EditEmployeePage() {
     setOvertimeMultiplier(String(data.overtimeMultiplier));
     setIsActive(data.isActive);
     setInactiveAt(data.inactiveAt ?? new Date().toISOString().slice(0, 10));
+    setSpecialNote(data.specialNote ?? "");
     setPortalUser(data.user);
   };
 
@@ -112,6 +115,7 @@ export default function EditEmployeePage() {
         payType,
         isActive,
         inactiveAt: isActive ? null : inactiveAt,
+        specialNote: specialNote.trim() || null,
         overtimeThreshold: Number(overtimeThreshold),
         overtimeMultiplier: Number(overtimeMultiplier),
       };
@@ -316,6 +320,22 @@ export default function EditEmployeePage() {
             </span>
           </label>
         ) : null}
+
+        <label className="text-sm flex flex-col gap-1.5">
+          <span className="text-[var(--muted)]">Special note / check memo</span>
+          <textarea
+            value={specialNote}
+            onChange={(e) => setSpecialNote(e.target.value)}
+            rows={2}
+            maxLength={500}
+            placeholder="e.g. Split check 2 ways, Deduct $50 tools…"
+            className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 resize-y"
+          />
+          <span className="text-xs text-[var(--muted)] leading-relaxed">
+            Copied into each new payroll run for this employee. You can override it
+            only for that run without changing this default.
+          </span>
+        </label>
 
         {error ? (
           <p className="text-sm text-red-600 dark:text-red-400" role="alert">

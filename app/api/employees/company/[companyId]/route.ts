@@ -36,6 +36,7 @@ const employeeSchema = z.object({
   overtimeThreshold: z.number().positive().optional(),
   overtimeMultiplier: z.number().positive().optional(),
   isActive: z.boolean().optional(),
+  specialNote: z.string().max(500).nullable().optional(),
 });
 
 export async function POST(
@@ -94,6 +95,9 @@ export async function POST(
       overtimeThreshold: parsed.data.overtimeThreshold ?? 40,
       overtimeMultiplier: parsed.data.overtimeMultiplier ?? 1.5,
       isActive: parsed.data.isActive ?? true,
+      specialNote: parsed.data.specialNote?.trim()
+        ? parsed.data.specialNote.trim()
+        : null,
     },
     include: { department: true },
   });
