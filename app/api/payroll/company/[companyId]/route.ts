@@ -6,6 +6,11 @@ import { assertSevenDayPeriod, enumerateInclusiveDates } from "@/lib/dates";
 import { payrollRunLinesArgs } from "@/lib/payrollLineInclude";
 import { canAccessCompany } from "@/lib/auth/company-access";
 
+const runListInclude = {
+  _count: { select: { lines: true } },
+  department: { select: { id: true, name: true } },
+} as const;
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ companyId: string }> }
@@ -21,7 +26,7 @@ export async function GET(
   const runs = await prisma.payrollRun.findMany({
     where: { companyId },
     orderBy: { createdAt: "desc" },
-    include: { _count: { select: { lines: true } } },
+    include: runListInclude,
   });
   return NextResponse.json(runs);
 }
@@ -30,6 +35,8 @@ const createRunSchema = z.object({
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   notes: z.string().optional(),
+  departmentId: z.string().uuid().optional().nullable(),
+  payTypeFilter: z.enum(["HOURLY", "SALARY"]).optional().nullable(),
 });
 
 export async function POST(
@@ -55,14 +62,35 @@ export async function POST(
     return NextResponse.json({ message: (e as Error).message }, { status: 400 });
   }
 
+  const departmentId = parsed.data.departmentId || null;
+  const payTypeFilter = parsed.data.payTypeFilter || null;
+
+  if (departmentId) {
+    const dept = await prisma.department.findFirst({
+      where: { id: departmentId, companyId },
+      select: { id: true },
+    });
+    if (!dept) {
+      return NextResponse.json({ message: "Department not found" }, { status: 404 });
+    }
+  }
+
   const dates = enumerateInclusiveDates(parsed.data.startDate, parsed.data.endDate);
   const employees = await prisma.employee.findMany({
-    where: { companyId, isActive: true },
+    where: {
+      companyId,
+      isActive: true,
+      ...(departmentId ? { departmentId } : {}),
+      ...(payTypeFilter ? { payType: payTypeFilter } : {}),
+    },
   });
 
   if (employees.length === 0) {
     return NextResponse.json(
-      { message: "No active employees in this company" },
+      {
+        message:
+          "No active employees match this payroll scope (department / pay type).",
+      },
       { status: 400 }
     );
   }
@@ -74,6 +102,8 @@ export async function POST(
         startDate: parsed.data.startDate,
         endDate: parsed.data.endDate,
         notes: parsed.data.notes?.trim() || null,
+        payTypeFilter,
+        departmentId,
         status: "DRAFT",
       },
     });
@@ -105,6 +135,8 @@ export async function POST(
   const full = await prisma.payrollRun.findUnique({
     where: { id: run.id },
     include: {
+      company: { select: { id: true, name: true } },
+      department: { select: { id: true, name: true } },
       lines: payrollRunLinesArgs,
     },
   });

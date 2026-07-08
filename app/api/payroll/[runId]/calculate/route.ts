@@ -51,6 +51,7 @@ export async function POST(
     where: { id: run.id },
     include: {
       company: { select: { id: true, name: true } },
+      department: { select: { id: true, name: true } },
       lines: payrollRunLinesArgs,
     },
   });

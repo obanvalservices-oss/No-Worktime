@@ -58,6 +58,25 @@ export async function POST(
     );
   }
 
+  if (employee.payType === "SALARY" && run.payTypeFilter === "HOURLY") {
+    return NextResponse.json(
+      { message: "This payroll run is hourly-only" },
+      { status: 400 }
+    );
+  }
+  if (employee.payType === "HOURLY" && run.payTypeFilter === "SALARY") {
+    return NextResponse.json(
+      { message: "This payroll run is salary-only" },
+      { status: 400 }
+    );
+  }
+  if (run.departmentId && employee.departmentId !== run.departmentId) {
+    return NextResponse.json(
+      { message: "Employee is outside this payroll run’s department" },
+      { status: 400 }
+    );
+  }
+
   const exists = await prisma.payrollLine.findFirst({
     where: { runId: run.id, employeeId: employee.id },
     select: { id: true },
@@ -92,6 +111,7 @@ export async function POST(
     where: { id: run.id },
     include: {
       company: { select: { id: true, name: true } },
+      department: { select: { id: true, name: true } },
       lines: payrollRunLinesArgs,
     },
   });

@@ -13,7 +13,20 @@ interface Run {
   endDate: string;
   status: string;
   createdAt: string;
+  payTypeFilter: "HOURLY" | "SALARY" | null;
+  departmentId: string | null;
+  department: { id: string; name: string } | null;
   _count: { lines: number };
+}
+
+function scopeLabel(r: Run): string {
+  const parts: string[] = [];
+  if (r.payTypeFilter === "HOURLY") parts.push("Hourly");
+  else if (r.payTypeFilter === "SALARY") parts.push("Salary");
+  else parts.push("All pay types");
+  if (r.department?.name) parts.push(r.department.name);
+  else parts.push("All departments");
+  return parts.join(" · ");
 }
 
 export default function PayrollListPage() {
@@ -46,7 +59,7 @@ export default function PayrollListPage() {
         <h1 className="text-2xl font-semibold">Payroll runs</h1>
         <Link
           href="/payroll/new"
-          className="inline-flex items-center gap-2 btn-brand px-4 py-2 text-sm font-medium"
+          className="inline-flex items-center gap-2 btn-brand px-4 py-2 text-sm font-medium cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           New run
@@ -62,24 +75,24 @@ export default function PayrollListPage() {
             transition={{ delay: i * 0.04 }}
             className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3"
           >
-            <Link href={`/payroll/${r.id}`} className="flex-1 min-w-0">
+            <Link href={`/payroll/${r.id}`} className="flex-1 min-w-0 cursor-pointer">
               <div className="font-medium">
                 {r.startDate} → {r.endDate}
               </div>
               <div className="text-xs text-[var(--muted)]">
-                {r.status} · {r._count.lines} employees
+                {r.status} · {r._count.lines} employees · {scopeLabel(r)}
               </div>
             </Link>
             <div className="flex items-center gap-2 shrink-0">
               <Link
                 href={`/payroll/${r.id}`}
-                className="text-sm link-brand hover:underline"
+                className="text-sm link-brand hover:underline cursor-pointer"
               >
                 Open
               </Link>
               <Link
                 href={`/payroll/${r.id}/report`}
-                className="text-sm link-brand hover:underline"
+                className="text-sm link-brand hover:underline cursor-pointer"
               >
                 Report
               </Link>
@@ -87,7 +100,7 @@ export default function PayrollListPage() {
                 <button
                   type="button"
                   onClick={() => remove(r.id)}
-                  className="p-2 rounded-lg text-[var(--muted)] hover:bg-red-500/10"
+                  className="p-2 rounded-lg text-[var(--muted)] hover:bg-red-500/10 cursor-pointer"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
